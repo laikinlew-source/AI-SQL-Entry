@@ -1,0 +1,11 @@
+[project]
+name = "ai-sql-entry"
+version = "0.1.0"
+description = "Project scaffold for a future AI-assisted SQL input-processing workflow."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
