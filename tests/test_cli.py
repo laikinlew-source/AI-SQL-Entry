@@ -21,6 +21,7 @@ class CliTests(unittest.TestCase):
                 document_id="doc-test",
                 artifact_dir=artifact_dir,
                 canonical_path=artifact_dir / "canonical.json",
+                extraction_report_path=artifact_dir / "extraction_report.json",
             )
 
         stdout = io.StringIO()
@@ -32,8 +33,10 @@ class CliTests(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertEqual(observed["pdf_path"], Path("invoices/invoice.pdf"))
         self.assertEqual(observed["output_root"], Path("artifacts"))
+        self.assertEqual(observed["source_relative_path"], "invoices/invoice.pdf")
         self.assertIn("doc-test", stdout.getvalue())
         self.assertIn("canonical.json", stdout.getvalue())
+        self.assertIn("extraction_report.json", stdout.getvalue())
 
     def test_rejects_single_pdf_outside_project_invoices_directory(self) -> None:
         def processor(*args: object, **kwargs: object) -> PipelineResult:

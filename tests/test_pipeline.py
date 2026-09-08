@@ -80,6 +80,16 @@ class InvoicePipelineTests(unittest.TestCase):
                     / "sql_account_purchase_invoice_header.csv"
                 ).is_file()
             )
+            report = json.loads(result.extraction_report_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                result.extraction_report_path,
+                result.artifact_dir / "extraction_report.json",
+            )
+            self.assertEqual(report["source_pdf_filename"], "minimal.pdf")
+            self.assertEqual(report["source_relative_path"], "invoices/minimal.pdf")
+            self.assertEqual(report["processing_status"], "extraction_succeeded")
+            self.assertEqual(report["missing_fields"], [])
+            self.assertEqual(report["fields"]["line_items"]["count"], 1)
             self.assertEqual(list(result.artifact_dir.glob("canonical.*.tmp")), [])
         finally:
             shutil.rmtree(output_root, ignore_errors=True)

@@ -63,6 +63,9 @@ def main(
     result = processor(
         arguments.pdf,
         arguments.output_root,
+        source_relative_path=arguments.pdf.resolve()
+        .relative_to(Path.cwd().resolve())
+        .as_posix(),
         **processing_options,
     )
     print(
@@ -71,6 +74,7 @@ def main(
                 "document_id": result.document_id,
                 "artifact_dir": str(result.artifact_dir),
                 "canonical_json": str(result.canonical_path),
+                "extraction_report": str(result.extraction_report_path),
             },
             indent=2,
         )

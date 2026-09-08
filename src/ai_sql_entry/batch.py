@@ -19,6 +19,7 @@ class BatchResult:
 class BatchFailure:
     source_path: Path
     error_path: Path
+    extraction_report_path: Path
 
 
 def process_invoice_directory(
@@ -70,6 +71,9 @@ def process_invoice_directory(
                 "missing_fields": list(error.missing_fields)
                 if isinstance(error, ExtractionError)
                 else [],
+                "field_failures": error.field_failures
+                if isinstance(error, ExtractionError)
+                else {},
                 "message": str(error)
                 if isinstance(error, ExtractionError)
                 else "The PDF could not be processed before field extraction completed.",
@@ -82,6 +86,17 @@ def process_invoice_directory(
             error_path.write_text(
                 json.dumps(error_payload, indent=2) + "\n", encoding="utf-8"
             )
-            failed.append(BatchFailure(pdf_path, error_path))
+            extraction_report_path = getattr(
+                error, "extraction_report_path", None
+            )
+            if extraction_report_path is None:
+                extraction_report_path = error_dir / pdf_path.stem / "extraction_report.json"
+                extraction_report_path.parent.mkdir(parents=True, exist_ok=True)
+                extraction_report_path.write_text(
+                    json.dumps(error_payload, indent=2) + "\n", encoding="utf-8"
+                )
+            failed.append(
+                BatchFailure(pdf_path, error_path, extraction_report_path)
+            )
 
     return BatchResult(processed=tuple(processed), failed=tuple(failed))

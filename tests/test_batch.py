@@ -127,12 +127,25 @@ class InvoiceBatchTests(unittest.TestCase):
             )
 
             error = json.loads(result.failed[0].error_path.read_text(encoding="utf-8"))
+            extraction_report = json.loads(
+                result.failed[0].extraction_report_path.read_text(encoding="utf-8")
+            )
             self.assertEqual(
                 error["missing_fields"], ["invoice_number", "sst", "line_items"]
             )
             self.assertIn("invoice_number", error["message"])
             self.assertIn("sst", error["message"])
             self.assertIn("line_items", error["message"])
+            self.assertEqual(
+                extraction_report["processing_status"], "extraction_failed"
+            )
+            self.assertEqual(
+                set(extraction_report["field_failures"]),
+                {"invoice_number", "sst", "line_items"},
+            )
+            self.assertTrue(
+                all(extraction_report["field_failures"].values())
+            )
         finally:
             shutil.rmtree(work_dir, ignore_errors=True)
 

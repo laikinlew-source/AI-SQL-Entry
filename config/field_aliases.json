@@ -55,5 +55,21 @@
       "Net Total",
       "Total Payable Amount"
     ]
+  },
+  "line_items": {
+    "start_aliases": [
+      "ITEMS",
+      "NO Code Description Quantity U.Price Rate Amt"
+    ],
+    "end_aliases": [
+      "TOTAL",
+      "Subtotal",
+      "Sub-Total",
+      "Total Excluding Tax"
+    ],
+    "ignore_aliases": [
+      "P.O. NO.",
+      "Purchase Order No"
+    ]
   }
 }

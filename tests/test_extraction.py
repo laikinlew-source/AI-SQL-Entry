@@ -159,11 +159,38 @@ class ExtractInvoiceTests(unittest.TestCase):
 
         invoice = extract_invoice(text)
 
-        self.assertEqual(invoice.invoice_number, "07806/26.")
+        self.assertEqual(invoice.invoice_number, "07806/26")
         self.assertEqual(invoice.invoice_date.isoformat(), "2026-08-12")
         self.assertEqual(invoice.currency, "MYR")
         self.assertEqual(invoice.subtotal, Decimal("100.00"))
         self.assertEqual(invoice.total_amount, Decimal("106.00"))
+
+    def test_extracts_hwa_guan_style_rows_and_derives_provable_zero_sst(self) -> None:
+        text = """HWA GUAN METAL (M) SDN BHD
+e-Invoice Number : 07806/26.
+Invoice Date and Time : 12/08/2026 8:40:28AM
+Invoice Currency Code : MYR
+NO Code Description Quantity U.Price Rate Amt
+1 022 STAINLESS STEEL ROUND BAR (SUS303CU) 500.00 KGS 19.50 - - 9,750.00
+DIA. 5.10 MM (h9) X 3.00 M
+2 022 STAINLESS STEEL ROUND BAR (SUS303CU) 102.00 KGS 21.00 - - 2,142.00
+DIA. 12.00 MM (h9) X 3.00 M
+TOTAL 2 Items 602.000 KGS MYR 11,892.00
+Sub-Total 11,892.00
++ Tax Amount .
+Total Payable Amount 11,892.00
+"""
+
+        invoice = extract_invoice(text)
+
+        self.assertEqual(invoice.invoice_number, "07806/26")
+        self.assertEqual(invoice.sst, Decimal("0.00"))
+        self.assertEqual(len(invoice.line_items), 2)
+        self.assertEqual(invoice.line_items[0].quantity, Decimal("500.00"))
+        self.assertEqual(invoice.line_items[0].unit_price, Decimal("19.50"))
+        self.assertEqual(invoice.line_items[0].amount, Decimal("9750.00"))
+        self.assertIn("DIA. 5.10 MM", invoice.line_items[0].description)
+        self.assertTrue(any("SST" in warning for warning in invoice.warnings))
 
     def test_loads_new_alias_from_an_editable_json_file(self) -> None:
         aliases = {
