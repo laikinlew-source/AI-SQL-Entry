@@ -55,7 +55,7 @@ class InvoicePipelineTests(unittest.TestCase):
             self.assertEqual(
                 canonical["processing"]["ocr_timestamp"], "2026-07-21T04:15:30Z"
             )
-            self.assertEqual(canonical["processing"]["parser_version"], "0.2.0")
+            self.assertEqual(canonical["processing"]["parser_version"], "0.3.0")
             self.assertEqual(
                 canonical["processing"]["processing_status"], "extraction_succeeded"
             )

@@ -6,7 +6,11 @@ import unittest
 from decimal import Decimal
 from pathlib import Path
 
-from ai_sql_entry.extraction import ExtractionError, extract_invoice
+from ai_sql_entry.extraction import (
+    DEFAULT_ALIAS_CONFIG_PATH,
+    ExtractionError,
+    extract_invoice,
+)
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -14,6 +18,11 @@ RUNTIME = Path(__file__).parent / "runtime"
 
 
 class ExtractInvoiceTests(unittest.TestCase):
+    def test_default_aliases_are_loaded_from_project_config_directory(self) -> None:
+        self.assertEqual(DEFAULT_ALIAS_CONFIG_PATH.name, "field_aliases.json")
+        self.assertEqual(DEFAULT_ALIAS_CONFIG_PATH.parent.name, "config")
+        self.assertTrue(DEFAULT_ALIAS_CONFIG_PATH.is_file())
+
     def test_extracts_required_invoice_fields_and_line_items(self) -> None:
         text = (FIXTURES / "invoice_ocr.txt").read_text(encoding="utf-8")
 
@@ -136,6 +145,25 @@ class ExtractInvoiceTests(unittest.TestCase):
         invoice = extract_invoice(text)
 
         self.assertEqual(invoice.invoice_number, "INV-0042")
+
+    def test_extracts_malaysian_invoice_labels_without_colons(self) -> None:
+        text = (FIXTURES / "invoice_ocr.txt").read_text(encoding="utf-8")
+        text = text.replace("Invoice No: INV-0042", "e-Invoice Number 07806/26.")
+        text = text.replace(
+            "Invoice Date: 18/07/2026",
+            "Invoice Date and Time 12/08/2026 8:40:28AM",
+        )
+        text = text.replace("Currency: MYR", "Invoice Currency Code MYR")
+        text = text.replace("Subtotal: 100.00", "Sub-Total 100.00")
+        text = text.replace("Total Amount: 106.00", "Total Payable Amount 106.00")
+
+        invoice = extract_invoice(text)
+
+        self.assertEqual(invoice.invoice_number, "07806/26.")
+        self.assertEqual(invoice.invoice_date.isoformat(), "2026-08-12")
+        self.assertEqual(invoice.currency, "MYR")
+        self.assertEqual(invoice.subtotal, Decimal("100.00"))
+        self.assertEqual(invoice.total_amount, Decimal("106.00"))
 
     def test_loads_new_alias_from_an_editable_json_file(self) -> None:
         aliases = {

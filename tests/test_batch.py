@@ -92,7 +92,7 @@ class InvoiceBatchTests(unittest.TestCase):
             self.assertEqual(error["source_filename"], "broken.pdf")
             self.assertEqual(error["source_relative_path"], "invoices/broken.pdf")
             self.assertIn("ocr_timestamp", error)
-            self.assertEqual(error["parser_version"], "0.2.0")
+            self.assertEqual(error["parser_version"], "0.3.0")
             self.assertEqual(error["processing_status"], "extraction_failed")
             self.assertEqual(error["missing_fields"], [])
             self.assertEqual(error["category"], "processing_failure")
