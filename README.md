@@ -21,6 +21,13 @@ python -m ai_sql_entry invoice.pdf --output-root outputs
 Use `--pdftoppm PATH` and `--tesseract PATH` when either executable is not on
 `PATH`. No cloud service or network connection is used.
 
+## Configure invoice field aliases
+
+All recognized field labels are stored in
+`src/ai_sql_entry/invoice_aliases.json`. Add another string to the relevant
+field's array to support a new label without changing Python code. Matching is
+case-insensitive and treats spaces, hyphens, and underscores as optional.
+
 Each run creates `outputs/processing/<document_id>/` containing the immutable
 original copy, rendered pages, raw OCR text, `canonical.json`, and a
 `sql_account_import/` preparation package.

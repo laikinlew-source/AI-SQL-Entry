@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import tempfile
 import unittest
 from decimal import Decimal
 from pathlib import Path
@@ -8,6 +10,7 @@ from ai_sql_entry.extraction import extract_invoice
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
+RUNTIME = Path(__file__).parent / "runtime"
 
 
 class ExtractInvoiceTests(unittest.TestCase):
@@ -69,6 +72,90 @@ class ExtractInvoiceTests(unittest.TestCase):
         self.assertEqual(invoice.line_items[0].quantity, Decimal("2"))
         self.assertEqual(invoice.line_items[0].unit_price, Decimal("50.00"))
         self.assertEqual(invoice.line_items[0].amount, Decimal("100.00"))
+
+    def test_supports_common_configured_field_aliases(self) -> None:
+        base = (FIXTURES / "invoice_ocr.txt").read_text(encoding="utf-8")
+        cases = {
+            "invoice_number": (
+                "Invoice No",
+                [
+                    "Invoice Number",
+                    "Inv No",
+                    "Inv #",
+                    "Invoice #",
+                    "Doc No",
+                    "Document No",
+                    "Reference No",
+                    "Ref No",
+                    "e-Invoice Number",
+                    "eInvoice Number",
+                    "e Invoice Number",
+                ],
+            ),
+            "invoice_date": (
+                "Invoice Date",
+                ["Date", "Document Date", "Tax Date", "e-Invoice Date"],
+            ),
+            "supplier": (
+                "ACORN OFFICE SUPPLIES SDN BHD",
+                ["Supplier", "Vendor", "Seller", "Company"],
+            ),
+            "subtotal": (
+                "Subtotal",
+                ["Before Tax", "Amount Before SST"],
+            ),
+            "sst": (
+                "SST 6%",
+                ["Service Tax", "Sales Tax", "Tax Amount"],
+            ),
+            "total": (
+                "Total Amount",
+                ["Total", "Grand Total", "Amount Due", "Net Total"],
+            ),
+        }
+
+        for field, (original, aliases) in cases.items():
+            for alias in aliases:
+                with self.subTest(field=field, alias=alias):
+                    if field == "supplier":
+                        text = base.replace(original, f"{alias}: {original}", 1)
+                    else:
+                        text = base.replace(original, alias, 1)
+                    invoice = extract_invoice(text)
+                    self.assertEqual(invoice.invoice_number, "INV-0042")
+                    self.assertEqual(invoice.invoice_date.isoformat(), "2026-07-18")
+                    self.assertEqual(invoice.supplier, "ACORN OFFICE SUPPLIES SDN BHD")
+                    self.assertEqual(invoice.subtotal, Decimal("100.00"))
+                    self.assertEqual(invoice.sst, Decimal("6.00"))
+                    self.assertEqual(invoice.total_amount, Decimal("106.00"))
+
+    def test_alias_matching_ignores_case_spaces_hyphens_and_underscores(self) -> None:
+        text = (FIXTURES / "invoice_ocr.txt").read_text(encoding="utf-8")
+        text = text.replace("Invoice No", "E_iNvOiCe-NuMbEr")
+
+        invoice = extract_invoice(text)
+
+        self.assertEqual(invoice.invoice_number, "INV-0042")
+
+    def test_loads_new_alias_from_an_editable_json_file(self) -> None:
+        aliases = {
+            "supplier": ["Supplier"],
+            "invoice_number": ["Billing Reference"],
+            "invoice_date": ["Invoice Date"],
+            "currency": ["Currency"],
+            "subtotal": ["Subtotal"],
+            "sst": ["SST"],
+            "total": ["Total Amount"],
+        }
+        text = (FIXTURES / "invoice_ocr.txt").read_text(encoding="utf-8")
+        text = text.replace("Invoice No", "Billing Reference")
+
+        with tempfile.TemporaryDirectory(dir=RUNTIME) as directory:
+            config_path = Path(directory) / "aliases.json"
+            config_path.write_text(json.dumps(aliases), encoding="utf-8")
+            invoice = extract_invoice(text, alias_config_path=config_path)
+
+        self.assertEqual(invoice.invoice_number, "INV-0042")
 
 
 if __name__ == "__main__":
