@@ -81,6 +81,9 @@ class InvoicePipelineTests(unittest.TestCase):
                 ).is_file()
             )
             report = json.loads(result.extraction_report_path.read_text(encoding="utf-8"))
+            sql_validation = json.loads(
+                result.sql_validation_report_path.read_text(encoding="utf-8")
+            )
             self.assertEqual(
                 result.extraction_report_path,
                 result.artifact_dir / "extraction_report.json",
@@ -90,6 +93,22 @@ class InvoicePipelineTests(unittest.TestCase):
             self.assertEqual(report["processing_status"], "extraction_succeeded")
             self.assertEqual(report["missing_fields"], [])
             self.assertEqual(report["fields"]["line_items"]["count"], 1)
+            self.assertEqual(
+                result.sql_validation_report_path,
+                result.artifact_dir / "sql_account_validation_report.json",
+            )
+            self.assertEqual(sql_validation["ready_for_sql_import"], "No")
+            self.assertEqual(
+                {name: check["status"] for name, check in sql_validation["checks"].items()},
+                {
+                    "supplier": "missing",
+                    "tax_code": "missing",
+                    "gl_account": "missing",
+                    "currency": "missing",
+                },
+            )
+            self.assertEqual(sql_validation["access_mode"], "read_only")
+            self.assertFalse(sql_validation["writes_performed"])
             self.assertEqual(list(result.artifact_dir.glob("canonical.*.tmp")), [])
         finally:
             shutil.rmtree(output_root, ignore_errors=True)

@@ -13,6 +13,12 @@ from .canonical import build_canonical
 from .extraction import PARSER_VERSION, ExtractionError, Invoice, extract_invoice
 from .ocr import ocr_pdf
 from .sql_account_export import write_import_package
+from .sql_account_validation import JsonSnapshotProvider, validate_invoice
+
+
+DEFAULT_SQL_ACCOUNT_CONFIG_DIR = (
+    Path(__file__).resolve().parents[2] / "config"
+)
 
 
 @dataclass(frozen=True)
@@ -21,6 +27,7 @@ class PipelineResult:
     artifact_dir: Path
     canonical_path: Path
     extraction_report_path: Path
+    sql_validation_report_path: Path
 
 
 def _write_json_atomic(path: Path, payload: dict[str, object]) -> None:
@@ -85,6 +92,7 @@ def process_invoice_pdf(
     pdftoppm_command: tuple[str, ...] = ("pdftoppm",),
     tesseract_command: tuple[str, ...] = ("tesseract",),
     source_relative_path: str | None = None,
+    sql_account_config_dir: Path | None = None,
 ) -> PipelineResult:
     """Process one supplier-invoice PDF into local artifacts."""
     source_bytes = pdf_path.read_bytes()
@@ -156,7 +164,22 @@ def process_invoice_pdf(
     canonical_path = artifact_dir / "canonical.json"
     _write_json_atomic(canonical_path, canonical)
 
+    master_data = JsonSnapshotProvider(
+        sql_account_config_dir or DEFAULT_SQL_ACCOUNT_CONFIG_DIR
+    ).load()
+    sql_validation_report_path = (
+        artifact_dir / "sql_account_validation_report.json"
+    )
+    _write_json_atomic(
+        sql_validation_report_path,
+        validate_invoice(canonical, master_data, validated_at=timestamp),
+    )
+
     write_import_package(canonical, artifact_dir / "sql_account_import")
     return PipelineResult(
-        document_id, artifact_dir, canonical_path, extraction_report_path
+        document_id,
+        artifact_dir,
+        canonical_path,
+        extraction_report_path,
+        sql_validation_report_path,
     )

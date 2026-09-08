@@ -2,7 +2,7 @@
 
 AI-SQL-Entry is a local supplier-invoice preparation pipeline:
 
-`PDF -> local OCR -> invoice extraction -> canonical JSON -> SQL Account import-preparation CSVs`
+`PDF -> local OCR -> invoice extraction -> canonical JSON -> read-only SQL Account validation -> import-preparation CSVs`
 
 It never writes to SQL Account, its database, API, or user interface. Generated
 records remain in `awaiting_review`, and the import manifest explicitly requires
@@ -15,7 +15,7 @@ language pack must be installed locally and available on `PATH`:
 
 ```powershell
 $env:PYTHONPATH = "src"
-python -m ai_sql_entry invoice.pdf --output-root outputs
+python -m ai_sql_entry "invoices/invoice.pdf" --output-root outputs
 ```
 
 Use `--pdftoppm PATH` and `--tesseract PATH` when either executable is not on
@@ -24,13 +24,29 @@ Use `--pdftoppm PATH` and `--tesseract PATH` when either executable is not on
 ## Configure invoice field aliases
 
 All recognized field labels are stored in
-`src/ai_sql_entry/invoice_aliases.json`. Add another string to the relevant
+`config/field_aliases.json`. Add another string to the relevant
 field's array to support a new label without changing Python code. Matching is
 case-insensitive and treats spaces, hyphens, and underscores as optional.
 
+## Configure read-only SQL Account validation
+
+The pipeline reads local JSON snapshots only. It does not connect to an API or
+database and cannot modify SQL Account. Enter verified master records in:
+
+- `config/suppliers.json` — `code`, `name`, optional `aliases`, and `active`
+- `config/tax_codes.json` — `code`, `tax_amount` (`zero` or `nonzero`), and `active`
+- `config/gl_accounts.json` — `code`, `name`, optional `keywords`, optional
+  `default`, and `active`
+- `config/currencies.json` — `code` and `active`
+
+The committed snapshots are intentionally empty. The validator never invents
+master-data codes. Each successful extraction creates
+`sql_account_validation_report.json`; `ready_for_sql_import` is `Yes` only when
+the supplier, tax code, every line-item GL account, and currency are found.
+
 Each run creates `outputs/processing/<document_id>/` containing the immutable
-original copy, rendered pages, raw OCR text, `canonical.json`, and a
-`sql_account_import/` preparation package.
+original copy, rendered pages, raw OCR text, `canonical.json`, extraction and
+SQL Account validation reports, and a `sql_account_import/` preparation package.
 
 Run the automated tests with:
 
@@ -55,9 +71,9 @@ python -m unittest discover -s tests -v
 
 ## Project status
 
-The minimum local extraction and import-preparation pipeline is implemented.
-Human review, approval, and verified vendor-specific SQL Account mapping remain
-separate future work.
+The minimum local extraction, read-only master-data validation, and
+import-preparation pipeline is implemented. Human review, approval, and any
+actual SQL Account import remain separate future work.
 
 ## License
 

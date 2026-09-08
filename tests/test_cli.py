@@ -22,6 +22,9 @@ class CliTests(unittest.TestCase):
                 artifact_dir=artifact_dir,
                 canonical_path=artifact_dir / "canonical.json",
                 extraction_report_path=artifact_dir / "extraction_report.json",
+                sql_validation_report_path=(
+                    artifact_dir / "sql_account_validation_report.json"
+                ),
             )
 
         stdout = io.StringIO()
@@ -37,6 +40,7 @@ class CliTests(unittest.TestCase):
         self.assertIn("doc-test", stdout.getvalue())
         self.assertIn("canonical.json", stdout.getvalue())
         self.assertIn("extraction_report.json", stdout.getvalue())
+        self.assertIn("sql_account_validation_report.json", stdout.getvalue())
 
     def test_rejects_single_pdf_outside_project_invoices_directory(self) -> None:
         def processor(*args: object, **kwargs: object) -> PipelineResult:

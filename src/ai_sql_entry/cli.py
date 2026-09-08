@@ -75,6 +75,9 @@ def main(
                 "artifact_dir": str(result.artifact_dir),
                 "canonical_json": str(result.canonical_path),
                 "extraction_report": str(result.extraction_report_path),
+                "sql_account_validation_report": str(
+                    result.sql_validation_report_path
+                ),
             },
             indent=2,
         )
