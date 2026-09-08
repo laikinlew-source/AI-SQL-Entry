@@ -32,3 +32,9 @@ Thumbs.db
 # Local runtime data
 data/logs/*
 !data/logs/.gitkeep
+
+# Local invoice intake and generated output
+invoices/*
+!invoices/.gitkeep
+output/*
+!output/.gitkeep

@@ -1,8 +1,36 @@
 # AI-SQL-Entry
 
-AI-SQL-Entry is a Python project scaffold for a future workflow that will receive, process, and organize SQL-related inputs with AI-assisted capabilities.
+AI-SQL-Entry is a local supplier-invoice preparation pipeline:
 
-The repository currently contains project structure and metadata only. No application code has been implemented.
+`PDF -> local OCR -> invoice extraction -> canonical JSON -> SQL Account import-preparation CSVs`
+
+It never writes to SQL Account, its database, API, or user interface. Generated
+records remain in `awaiting_review`, and the import manifest explicitly requires
+mapping review before use.
+
+## Run locally
+
+Python 3.10 or later, Poppler's `pdftoppm`, and Tesseract OCR with the English
+language pack must be installed locally and available on `PATH`:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m ai_sql_entry invoice.pdf --output-root outputs
+```
+
+Use `--pdftoppm PATH` and `--tesseract PATH` when either executable is not on
+`PATH`. No cloud service or network connection is used.
+
+Each run creates `outputs/processing/<document_id>/` containing the immutable
+original copy, rendered pages, raw OCR text, `canonical.json`, and a
+`sql_account_import/` preparation package.
+
+Run the automated tests with:
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m unittest discover -s tests -v
+```
 
 ## Directory structure
 
@@ -12,15 +40,17 @@ The repository currently contains project structure and metadata only. No applic
 - `completed/` — successfully processed outputs
 - `error/` — inputs or outputs that require investigation
 - `samples/` — example inputs and reference material
-- `src/` — future Python application source
-- `tests/` — future automated tests
+- `src/` — Python application source
+- `tests/` — automated tests and sanitized fixtures
 - `data/images/` — image data used by future workflows
 - `data/json/` — JSON data used by future workflows
 - `data/logs/` — local runtime logs
 
 ## Project status
 
-Initial scaffolding only. Implementation will be added in a later phase.
+The minimum local extraction and import-preparation pipeline is implemented.
+Human review, approval, and verified vendor-specific SQL Account mapping remain
+separate future work.
 
 ## License
 
