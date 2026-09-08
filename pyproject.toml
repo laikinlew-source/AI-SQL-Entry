@@ -5,7 +5,7 @@ description = "Project scaffold for a future AI-assisted SQL input-processing wo
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
-dependencies = []
+dependencies = ["openpyxl>=3.1,<4"]
 
 [project.scripts]
 ai-sql-entry = "ai_sql_entry.cli:main"
