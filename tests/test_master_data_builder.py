@@ -192,6 +192,25 @@ class MasterDataBuilderTests(unittest.TestCase):
         self.assertIn("code", report["errors"][0]["message"])
         self.assertEqual(snapshot_path.read_bytes(), original)
 
+    def test_malformed_json_is_reported_without_replacement(self) -> None:
+        snapshot_path = self._snapshot(
+            "currencies", [{"code": "MYR", "active": True}]
+        )
+        original = snapshot_path.read_bytes()
+        source = self.work_dir / "currencies.json"
+        _write_json(source, {"wrong_key": []})
+
+        report = build_snapshot(
+            "currencies", source, self.config_dir, timestamp=NOW
+        )
+
+        self.assertEqual(report["status"], "invalid")
+        self.assertEqual(report["source_format"], "json")
+        self.assertEqual(report["statistics"]["rows_read"], 0)
+        self.assertIn("record list", report["errors"][0]["message"])
+        self.assertFalse(report["snapshot_written"])
+        self.assertEqual(snapshot_path.read_bytes(), original)
+
 
 if __name__ == "__main__":
     unittest.main()

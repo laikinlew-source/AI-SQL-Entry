@@ -224,12 +224,44 @@ def build_snapshot(
         raise ValueError("minimum_retention_ratio must be between 0 and 1")
     timestamp = timestamp or datetime.now(timezone.utc)
     timestamp_value, timestamp_token = _timestamp_text(timestamp)
-    source_format, rows = read_import_rows(
-        input_path, dataset, sheet_name=sheet_name
-    )
-    records, errors, duplicates = validate_import_rows(dataset, rows)
     snapshot_path = config_dir / f"{dataset}.json"
     existing_count = _read_existing_count(snapshot_path, dataset)
+    try:
+        source_format, rows = read_import_rows(
+            input_path, dataset, sheet_name=sheet_name
+        )
+    except Exception as error:
+        source_format = {
+            ".csv": "csv",
+            ".json": "json",
+            ".xlsx": "excel",
+        }.get(input_path.suffix.casefold(), "unsupported")
+        return {
+            "report_version": "1.0.0",
+            "dataset": dataset,
+            "input_path": str(input_path),
+            "source_format": source_format,
+            "snapshot_path": str(snapshot_path),
+            "generated_at": timestamp_value,
+            "dry_run": dry_run,
+            "minimum_retention_ratio": format(minimum_retention_ratio, "f"),
+            "statistics": {
+                "rows_read": 0,
+                "rows_accepted": 0,
+                "rows_rejected": 0,
+                "existing_rows": existing_count,
+                "retention_ratio": "0.0000" if existing_count else "1.0000",
+            },
+            "duplicates": {"supplier_codes": [], "supplier_names": []},
+            "errors": [{"row": None, "message": str(error)}],
+            "warnings": [],
+            "would_replace_snapshot": False,
+            "snapshot_written": False,
+            "backup_path": None,
+            "sql_account_access": "none",
+            "status": "invalid",
+        }
+    records, errors, duplicates = validate_import_rows(dataset, rows)
     retention_ratio = (
         Decimal(len(records)) / Decimal(existing_count)
         if existing_count

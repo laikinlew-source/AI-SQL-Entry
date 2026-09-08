@@ -44,6 +44,23 @@ master-data codes. Each successful extraction creates
 `sql_account_validation_report.json`; `ready_for_sql_import` is `Yes` only when
 the supplier, tax code, every line-item GL account, and currency are found.
 
+Populate a snapshot from CSV, Excel (`.xlsx`), or JSON with the separate local
+builder:
+
+```powershell
+ai-sql-master-data suppliers path\to\suppliers.xlsx --dry-run
+ai-sql-master-data suppliers path\to\suppliers.xlsx
+```
+
+The first command validates and writes an import-statistics report without
+changing the snapshot. A real replacement is atomic and first copies the
+existing snapshot to `config/backups/` with a UTC timestamp. Replacement stops
+when validation fails, duplicate supplier codes or normalized names are found,
+or the imported row count is below 50% of the current snapshot. Override that
+floor explicitly with `--min-retention-ratio` when a verified smaller export is
+intentional. Use `--sheet` to select a named Excel worksheet and `--report` to
+choose the statistics-report path.
+
 Each run creates `outputs/processing/<document_id>/` containing the immutable
 original copy, rendered pages, raw OCR text, `canonical.json`, extraction and
 SQL Account validation reports, and a `sql_account_import/` preparation package.

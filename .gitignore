@@ -38,3 +38,6 @@ invoices/*
 !invoices/.gitkeep
 output/*
 !output/.gitkeep
+
+# Local master-data backup snapshots
+config/backups/
