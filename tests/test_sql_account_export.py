@@ -23,9 +23,13 @@ class SqlAccountExportTests(unittest.TestCase):
             invoice,
             document_id="doc-test-0001",
             source_filename="invoice.pdf",
+            source_relative_path="invoices/invoice.pdf",
             source_sha256="a" * 64,
             page_count=1,
             created_at=datetime(2026, 7, 21, 4, 15, 30, tzinfo=timezone.utc),
+            ocr_timestamp="2026-07-21T04:15:31Z",
+            parser_version="0.2.0",
+            processing_status="extraction_succeeded",
         )
 
         output = RUNTIME
@@ -56,17 +60,22 @@ class SqlAccountExportTests(unittest.TestCase):
 
         self.assertEqual(
             header,
-            "Supplier,InvoiceNumber,InvoiceDate,Currency,Subtotal,SST,TotalAmount\n"
-            "ACORN OFFICE SUPPLIES SDN BHD,INV-0042,2026-07-18,MYR,100.00,6.00,106.00\n",
+            "SourcePdfFilename,SourceRelativePath,OcrTimestamp,ParserVersion,ProcessingStatus,Supplier,InvoiceNumber,InvoiceDate,Currency,Subtotal,SST,TotalAmount\n"
+            "invoice.pdf,invoices/invoice.pdf,2026-07-21T04:15:31Z,0.2.0,extraction_succeeded,ACORN OFFICE SUPPLIES SDN BHD,INV-0042,2026-07-18,MYR,100.00,6.00,106.00\n",
         )
         self.assertEqual(
             lines,
-            "InvoiceNumber,LineNumber,Description,Quantity,UnitPrice,Amount\n"
-            "INV-0042,1,Fictional Desk Set,2,50.00,100.00\n",
+            "SourcePdfFilename,SourceRelativePath,OcrTimestamp,ParserVersion,ProcessingStatus,InvoiceNumber,LineNumber,Description,Quantity,UnitPrice,Amount\n"
+            "invoice.pdf,invoices/invoice.pdf,2026-07-21T04:15:31Z,0.2.0,extraction_succeeded,INV-0042,1,Fictional Desk Set,2,50.00,100.00\n",
         )
         self.assertEqual(manifest["status"], "mapping_review_required")
         self.assertFalse(manifest["authorized_for_sql_account_write"])
         self.assertEqual(manifest["source_schema_version"], "1.0.0")
+        self.assertEqual(manifest["source_pdf_filename"], "invoice.pdf")
+        self.assertEqual(manifest["source_relative_path"], "invoices/invoice.pdf")
+        self.assertEqual(manifest["ocr_timestamp"], "2026-07-21T04:15:31Z")
+        self.assertEqual(manifest["parser_version"], "0.2.0")
+        self.assertEqual(manifest["processing_status"], "extraction_succeeded")
 
 
 if __name__ == "__main__":

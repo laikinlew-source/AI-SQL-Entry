@@ -21,9 +21,13 @@ class CanonicalJsonTests(unittest.TestCase):
             invoice,
             document_id="doc-test-0001",
             source_filename="invoice.pdf",
+            source_relative_path="invoices/invoice.pdf",
             source_sha256="a" * 64,
             page_count=1,
             created_at=datetime(2026, 7, 21, 4, 15, 30, tzinfo=timezone.utc),
+            ocr_timestamp="2026-07-21T04:15:31Z",
+            parser_version="0.2.0",
+            processing_status="extraction_succeeded",
         )
 
         self.assertIn("schema_version", payload)
@@ -31,6 +35,10 @@ class CanonicalJsonTests(unittest.TestCase):
         self.assertEqual(payload["document_id"], "doc-test-0001")
         self.assertEqual(payload["lifecycle_status"], "awaiting_review")
         self.assertEqual(payload["source"]["sha256"], "a" * 64)
+        self.assertEqual(payload["source"]["source_relative_path"], "invoices/invoice.pdf")
+        self.assertEqual(payload["processing"]["ocr_timestamp"], "2026-07-21T04:15:31Z")
+        self.assertEqual(payload["processing"]["parser_version"], "0.2.0")
+        self.assertEqual(payload["processing"]["processing_status"], "extraction_succeeded")
         self.assertEqual(
             payload["parties"]["issuer"]["name"]["extracted"]["normalized_value"],
             "ACORN OFFICE SUPPLIES SDN BHD",

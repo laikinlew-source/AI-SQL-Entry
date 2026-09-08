@@ -53,9 +53,13 @@ def build_canonical(
     *,
     document_id: str,
     source_filename: str,
+    source_relative_path: str,
     source_sha256: str,
     page_count: int,
     created_at: datetime,
+    ocr_timestamp: str,
+    parser_version: str,
+    processing_status: str,
 ) -> dict[str, Any]:
     """Build the documented canonical JSON projection for extracted invoice data."""
     timestamp = created_at.isoformat().replace("+00:00", "Z")
@@ -90,6 +94,7 @@ def build_canonical(
         "lifecycle_status": "awaiting_review",
         "source": {
             "original_filename": source_filename,
+            "source_relative_path": source_relative_path,
             "original_extension": ".pdf",
             "mime_type": "application/pdf",
             "sha256": source_sha256,
@@ -103,6 +108,9 @@ def build_canonical(
         },
         "processing": {
             "pipeline_version": "0.1.0",
+            "parser_version": parser_version,
+            "ocr_timestamp": ocr_timestamp,
+            "processing_status": processing_status,
             "attempt_number": 1,
             "current_stage": "human_review",
             "page_count_status": "present",

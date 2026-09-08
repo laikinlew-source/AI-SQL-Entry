@@ -26,14 +26,23 @@ class CliTests(unittest.TestCase):
         stdout = io.StringIO()
         with redirect_stdout(stdout):
             exit_code = main(
-                ["invoice.pdf", "--output-root", "artifacts"], processor=processor
+                ["invoices/invoice.pdf", "--output-root", "artifacts"], processor=processor
             )
 
         self.assertEqual(exit_code, 0)
-        self.assertEqual(observed["pdf_path"], Path("invoice.pdf"))
+        self.assertEqual(observed["pdf_path"], Path("invoices/invoice.pdf"))
         self.assertEqual(observed["output_root"], Path("artifacts"))
         self.assertIn("doc-test", stdout.getvalue())
         self.assertIn("canonical.json", stdout.getvalue())
+
+    def test_rejects_single_pdf_outside_project_invoices_directory(self) -> None:
+        def processor(*args: object, **kwargs: object) -> PipelineResult:
+            self.fail("PDF outside invoices/ must not reach the production processor")
+
+        with self.assertRaises(SystemExit) as raised:
+            main(["samples/invoice.pdf"], processor=processor)
+
+        self.assertEqual(raised.exception.code, 2)
 
     def test_defaults_to_processing_invoices_directory_into_output(self) -> None:
         observed: dict[str, object] = {}

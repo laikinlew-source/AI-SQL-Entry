@@ -10,7 +10,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from .canonical import build_canonical
-from .extraction import extract_invoice
+from .extraction import PARSER_VERSION, extract_invoice
 from .ocr import ocr_pdf
 from .sql_account_export import write_import_package
 
@@ -29,6 +29,7 @@ def process_invoice_pdf(
     created_at: datetime,
     pdftoppm_command: tuple[str, ...] = ("pdftoppm",),
     tesseract_command: tuple[str, ...] = ("tesseract",),
+    source_relative_path: str | None = None,
 ) -> PipelineResult:
     """Process one supplier-invoice PDF into local artifacts."""
     source_bytes = pdf_path.read_bytes()
@@ -48,7 +49,6 @@ def process_invoice_pdf(
         pdftoppm_command=pdftoppm_command,
         tesseract_command=tesseract_command,
     )
-    invoice = extract_invoice(ocr_result.text)
 
     extraction_run_id = f"extract-{document_id}"
     extraction_dir = artifact_dir / "extraction" / extraction_run_id
@@ -56,14 +56,21 @@ def process_invoice_pdf(
     (extraction_dir / "ocr.txt").write_text(
         ocr_result.text + "\n", encoding="utf-8"
     )
+    invoice = extract_invoice(ocr_result.text)
+
+    timestamp = created_at.isoformat().replace("+00:00", "Z")
 
     canonical = build_canonical(
         invoice,
         document_id=document_id,
         source_filename=pdf_path.name,
+        source_relative_path=source_relative_path or pdf_path.as_posix(),
         source_sha256=source_sha256,
         page_count=len(ocr_result.page_paths),
         created_at=created_at,
+        ocr_timestamp=timestamp,
+        parser_version=PARSER_VERSION,
+        processing_status="extraction_succeeded",
     )
     canonical_path = artifact_dir / "canonical.json"
     temporary_path = artifact_dir / f"canonical.{uuid4().hex}.tmp"

@@ -33,6 +33,7 @@ class InvoicePipelineTests(unittest.TestCase):
                     str(FIXTURES / "fake_document_tool.py"),
                     "invoice_ocr",
                 ),
+                source_relative_path="invoices/minimal.pdf",
             )
 
             self.assertEqual(result.document_id, "doc-e53302bb9d4b")
@@ -48,6 +49,16 @@ class InvoicePipelineTests(unittest.TestCase):
                 "e53302bb9d4bb3a69bb58c198ad333944137ee5656f57e7281204b6409f078a3",
             )
             self.assertEqual(canonical["source"]["page_count"], 2)
+            self.assertEqual(
+                canonical["source"]["source_relative_path"], "invoices/minimal.pdf"
+            )
+            self.assertEqual(
+                canonical["processing"]["ocr_timestamp"], "2026-07-21T04:15:30Z"
+            )
+            self.assertEqual(canonical["processing"]["parser_version"], "0.2.0")
+            self.assertEqual(
+                canonical["processing"]["processing_status"], "extraction_succeeded"
+            )
             self.assertEqual(
                 canonical["document_details"]["document_number"]["extracted"][
                     "normalized_value"

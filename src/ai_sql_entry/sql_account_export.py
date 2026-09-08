@@ -16,12 +16,26 @@ def write_import_package(canonical: dict[str, Any], output_dir: Path) -> None:
     details = canonical["document_details"]
     summary = canonical["financial_summary"]
     invoice_number = details["document_number"]["extracted"]["normalized_value"]
+    provenance = [
+        canonical["source"]["original_filename"],
+        canonical["source"]["source_relative_path"],
+        canonical["processing"]["ocr_timestamp"],
+        canonical["processing"]["parser_version"],
+        canonical["processing"]["processing_status"],
+    ]
+    provenance_headers = [
+        "SourcePdfFilename",
+        "SourceRelativePath",
+        "OcrTimestamp",
+        "ParserVersion",
+        "ProcessingStatus",
+    ]
 
     header_path = output_dir / "sql_account_purchase_invoice_header.csv"
     with header_path.open("w", encoding="utf-8-sig", newline="") as stream:
         writer = csv.writer(stream, lineterminator="\n")
         writer.writerow(
-            [
+            provenance_headers + [
                 "Supplier",
                 "InvoiceNumber",
                 "InvoiceDate",
@@ -32,7 +46,7 @@ def write_import_package(canonical: dict[str, Any], output_dir: Path) -> None:
             ]
         )
         writer.writerow(
-            [
+            provenance + [
                 supplier,
                 invoice_number,
                 details["issue_date"]["extracted"]["normalized_value"],
@@ -47,7 +61,7 @@ def write_import_package(canonical: dict[str, Any], output_dir: Path) -> None:
     with lines_path.open("w", encoding="utf-8-sig", newline="") as stream:
         writer = csv.writer(stream, lineterminator="\n")
         writer.writerow(
-            [
+            provenance_headers + [
                 "InvoiceNumber",
                 "LineNumber",
                 "Description",
@@ -58,7 +72,7 @@ def write_import_package(canonical: dict[str, Any], output_dir: Path) -> None:
         )
         for position, item in enumerate(canonical["line_items"], start=1):
             writer.writerow(
-                [
+                provenance + [
                     invoice_number,
                     position,
                     item["description"]["extracted"]["normalized_value"],
@@ -74,6 +88,11 @@ def write_import_package(canonical: dict[str, Any], output_dir: Path) -> None:
         "authorized_for_sql_account_write": False,
         "source_schema_version": canonical["schema_version"],
         "document_id": canonical["document_id"],
+        "source_pdf_filename": canonical["source"]["original_filename"],
+        "source_relative_path": canonical["source"]["source_relative_path"],
+        "ocr_timestamp": canonical["processing"]["ocr_timestamp"],
+        "parser_version": canonical["processing"]["parser_version"],
+        "processing_status": canonical["processing"]["processing_status"],
         "files": [header_path.name, lines_path.name],
         "notice": (
             "The official SQL Account Purchase Invoice import contract is not yet "

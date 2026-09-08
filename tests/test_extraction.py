@@ -6,7 +6,7 @@ import unittest
 from decimal import Decimal
 from pathlib import Path
 
-from ai_sql_entry.extraction import extract_invoice
+from ai_sql_entry.extraction import ExtractionError, extract_invoice
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -156,6 +156,20 @@ class ExtractInvoiceTests(unittest.TestCase):
             invoice = extract_invoice(text, alias_config_path=config_path)
 
         self.assertEqual(invoice.invoice_number, "INV-0042")
+
+    def test_reports_every_missing_required_field_without_placeholder_values(self) -> None:
+        text = (FIXTURES / "invoice_ocr.txt").read_text(encoding="utf-8")
+        text = text.replace("Invoice No: INV-0042", "")
+        text = text.replace("SST 6%: 6.00", "")
+        text = text.replace("Fictional Desk Set | 2 | 50.00 | 100.00", "")
+
+        with self.assertRaises(ExtractionError) as raised:
+            extract_invoice(text)
+
+        self.assertEqual(
+            raised.exception.missing_fields,
+            ("invoice_number", "sst", "line_items"),
+        )
 
 
 if __name__ == "__main__":

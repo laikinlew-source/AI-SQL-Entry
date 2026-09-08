@@ -19,5 +19,13 @@ elif mode == "invoice_ocr":
     page = Path(sys.argv[2])
     if page.stem == "page-0001":
         print((Path(__file__).parent / "invoice_ocr.txt").read_text(encoding="utf-8"))
+elif mode == "incomplete_invoice_ocr":
+    page = Path(sys.argv[2])
+    if page.stem == "page-0001":
+        text = (Path(__file__).parent / "invoice_ocr.txt").read_text(encoding="utf-8")
+        text = text.replace("Invoice No: INV-0042", "")
+        text = text.replace("SST 6%: 6.00", "")
+        text = text.replace("Fictional Desk Set | 2 | 50.00 | 100.00", "")
+        print(text)
 else:
     raise SystemExit(f"Unknown mode: {mode}")

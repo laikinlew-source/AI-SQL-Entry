@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from .extraction import PARSER_VERSION, ExtractionError
 from .pipeline import PipelineResult, process_invoice_pdf
 
 
@@ -34,12 +35,17 @@ def process_invoice_directory(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     pdf_paths = sorted(
-        (path for path in invoices_dir.iterdir() if path.suffix.lower() == ".pdf"),
+        (
+            path
+            for path in invoices_dir.iterdir()
+            if path.is_file() and path.suffix.lower() == ".pdf"
+        ),
         key=lambda path: path.name.casefold(),
     )
     processed = []
     failed = []
     for pdf_path in pdf_paths:
+        source_relative_path = pdf_path.relative_to(invoices_dir.parent).as_posix()
         try:
             processed.append(
                 process_invoice_pdf(
@@ -48,6 +54,7 @@ def process_invoice_directory(
                     created_at=created_at,
                     pdftoppm_command=pdftoppm_command,
                     tesseract_command=tesseract_command,
+                    source_relative_path=source_relative_path,
                 )
             )
         except Exception as error:
@@ -56,6 +63,16 @@ def process_invoice_directory(
             error_path = error_dir / f"{pdf_path.stem}.json"
             error_payload = {
                 "source_filename": pdf_path.name,
+                "source_relative_path": source_relative_path,
+                "ocr_timestamp": created_at.isoformat().replace("+00:00", "Z"),
+                "parser_version": PARSER_VERSION,
+                "processing_status": "extraction_failed",
+                "missing_fields": list(error.missing_fields)
+                if isinstance(error, ExtractionError)
+                else [],
+                "message": str(error)
+                if isinstance(error, ExtractionError)
+                else "The PDF could not be processed before field extraction completed.",
                 "category": "processing_failure",
                 "occurred_at": created_at.isoformat().replace("+00:00", "Z"),
                 "technical_code": type(error).__name__,

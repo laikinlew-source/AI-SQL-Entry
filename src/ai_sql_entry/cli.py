@@ -53,6 +53,13 @@ def main(
         )
         return 0
 
+    intake_dir = Path("invoices").resolve()
+    if (
+        arguments.pdf.resolve().parent != intake_dir
+        or arguments.pdf.suffix.lower() != ".pdf"
+    ):
+        parser.error("The production pipeline only accepts PDFs from invoices/")
+
     result = processor(
         arguments.pdf,
         arguments.output_root,
