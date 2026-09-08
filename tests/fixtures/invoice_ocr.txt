@@ -1,0 +1,12 @@
+ACORN OFFICE SUPPLIES SDN BHD
+TAX INVOICE
+Invoice No: INV-0042
+Invoice Date: 18/07/2026
+Currency: MYR
+
+ITEMS
+Fictional Desk Set | 2 | 50.00 | 100.00
+
+Subtotal: 100.00
+SST 6%: 6.00
+Total Amount: 106.00
