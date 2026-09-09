@@ -26,6 +26,29 @@ even when an official SDK exposes a read-only query helper; any SDK adapter must
 use the vendor-supported SDK boundary and keep its output behind the existing
 source-independent snapshot builder.
 
+## Local installation result
+
+**VERIFIED-LOCAL:** SQL Account 5.2026.1085.897 is installed at
+`C:\eStream\SQLAccounting\`. The installation contains `SQLACC.exe`,
+`SQLACCSVC.exe`, and application integration components, but it does not contain
+`SQLAccTxtXMLImp.exe`, `SQLAccTxtImp`, an XML Import/Export shortcut, or an XML
+utility installer. The Windows uninstall registry contains only the base
+**SQL Account 5.2026.1085.897** product. The documented default utility folder
+`C:\eStream\Utilities\SQLAccTxtImp` is absent, as are the common Start Menu
+shortcuts for the external module.
+
+Therefore **SQL Financial Accounting Text & XML Import Module V5 is not
+installed on this machine**. No process was launched and no SQL Account state
+was changed.
+
+The official [Text Import reference](https://wiki.sql.com.my/wiki/SQL_Text_Import)
+identifies the separate program as `SQLAccTxtXMLImp`, current published build
+5.11.3.82 (05 May 2026), with MD5
+`4A5C85E6AC619265490CC6D7ACCDB47F`. The official XML guide links the installer
+as [`SQLAccTxtXMLImp-setup.exe`](https://download.sql.com.my/customer/Fairy/SQLAccTxtXMLImp-setup.exe).
+This is a separate utility package, not a component of the base
+`C:\eStream\SQLAccounting` installation.
+
 ## Executive decision
 
 No fully unattended acquisition path is enabled on this machine today:
@@ -133,6 +156,27 @@ also describes the external utility and XML export capabilities.
 one-time operator action because the current Codex runtime cannot expose the
 native Windows dialog. The project can then validate the XML, normalize it to
 the four local snapshots, back up prior snapshots, and rerun invoice readiness.
+
+### Launch and command-line support
+
+The vendor’s documented Windows Scheduler recipe uses this executable and
+argument for **automatic import**:
+
+```text
+C:\eStream\Utilities\SQLAccTxtImp\SQLAccTxtXMLImp.exe -Auto
+```
+
+The same vendor reference documents `File | Auto Import Settings...` for that
+mode. It does not document a command-line switch that invokes **Fast XML
+Export**. Fast XML Export is a utility feature (the vendor history records it
+from build 46 onward), but the export flow is documented as an interactive
+toolbar action. Consequently:
+
+- the utility supports command-line invocation for its scheduled auto-import
+  mode;
+- no supported headless Fast XML Export command has been found; and
+- the current machine has no executable from which to verify the module build
+  or whether its export menu is present.
 
 ## Method 3 — Official command-line or batch export
 
