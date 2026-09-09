@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
+import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 
 DEFAULT_FOLDERS = {
@@ -131,3 +135,149 @@ def discover_invoice_files(config: ProductionConfig) -> tuple[Path, ...]:
             key=lambda path: path.as_posix().casefold(),
         )
     )
+
+
+def atomic_write_json(path: Path, payload: Mapping[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = path.parent / f"{path.name}.{uuid4().hex}.tmp"
+    try:
+        with temporary_path.open("w", encoding="utf-8", newline="\n") as stream:
+            json.dump(payload, stream, indent=2, ensure_ascii=False)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary_path, path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+def load_resume_index(config: ProductionConfig) -> dict[str, object]:
+    path = config.history_dir / "resume_index.json"
+    if not path.is_file():
+        return {"version": "1.0.0", "entries": []}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or not isinstance(payload.get("entries"), list):
+        raise ValueError("resume_index.json must contain an entries list")
+    return payload
+
+
+def record_resume_entry(
+    config: ProductionConfig, entry: Mapping[str, object]
+) -> None:
+    index = load_resume_index(config)
+    entries = [
+        existing
+        for existing in index["entries"]
+        if existing.get("source_sha256") != entry.get("source_sha256")
+    ]
+    entries.append(dict(entry))
+    atomic_write_json(
+        config.history_dir / "resume_index.json",
+        {"version": index.get("version", "1.0.0"), "entries": entries},
+    )
+
+
+def _normalize_business_value(value: object) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(value or "").casefold())
+
+
+def _field_value(field: Mapping[str, Any] | None) -> object:
+    if not isinstance(field, Mapping):
+        return None
+    reviewed = field.get("reviewed")
+    if isinstance(reviewed, Mapping) and reviewed.get("status") in {
+        "corrected",
+        "supplied",
+    }:
+        return reviewed.get("value")
+    extracted = field.get("extracted")
+    if isinstance(extracted, Mapping):
+        return extracted.get("normalized_value")
+    return None
+
+
+def _canonical_business_keys(canonical: Mapping[str, Any]) -> dict[str, str]:
+    source = canonical.get("source", {})
+    parties = canonical.get("parties", {})
+    issuer = parties.get("issuer", {}) if isinstance(parties, Mapping) else {}
+    details = canonical.get("document_details", {})
+    summary = canonical.get("financial_summary", {})
+    total = _field_value(summary.get("grand_total")) if isinstance(summary, Mapping) else None
+    if isinstance(total, Mapping):
+        total = total.get("value")
+    return {
+        "sha256": str(source.get("sha256", "")) if isinstance(source, Mapping) else "",
+        "invoice_number": _normalize_business_value(
+            _field_value(details.get("document_number")) if isinstance(details, Mapping) else None
+        ),
+        "supplier": _normalize_business_value(
+            _field_value(issuer.get("name")) if isinstance(issuer, Mapping) else None
+        ),
+        "invoice_date": str(
+            _field_value(details.get("issue_date")) if isinstance(details, Mapping) else ""
+        ),
+        "total_amount": str(total or ""),
+    }
+
+
+def find_duplicate(
+    canonical: Mapping[str, Any], index: Mapping[str, object]
+) -> dict[str, object] | None:
+    current = _canonical_business_keys(canonical)
+    for entry in index.get("entries", []):
+        if not isinstance(entry, Mapping):
+            continue
+        prior = {
+            "sha256": str(entry.get("source_sha256", "")),
+            "invoice_number": _normalize_business_value(entry.get("invoice_number")),
+            "supplier": _normalize_business_value(entry.get("supplier")),
+            "invoice_date": str(entry.get("invoice_date", "")),
+            "total_amount": str(entry.get("total_amount", "")),
+        }
+        sha_match = bool(current["sha256"] and prior["sha256"] == current["sha256"])
+        business_names = ("invoice_number", "supplier", "invoice_date", "total_amount")
+        business_matches = [
+            name
+            for name in business_names
+            if current[name] and prior[name] and current[name] == prior[name]
+        ]
+        composite_match = len(business_matches) == len(business_names)
+        if not sha_match and not composite_match:
+            continue
+        matching_keys = (["sha256"] if sha_match else []) + business_matches
+        return {
+            "reason": "sha256_match" if sha_match else "composite_business_key_match",
+            "matching_keys": matching_keys,
+            "prior_document_id": entry.get("document_id"),
+            "prior_run_id": entry.get("run_id"),
+            "prior_artifact_path": entry.get("artifact_path"),
+            "current_values": current,
+            "prior_values": prior,
+        }
+    return None
+
+
+def build_audit(
+    canonical: Mapping[str, Any],
+    config: ProductionConfig,
+    run_id: str,
+    processed_at: str,
+) -> dict[str, object]:
+    source = canonical.get("source", {})
+    processing = canonical.get("processing", {})
+    review = canonical.get("review", {})
+    return {
+        "document_id": canonical.get("document_id"),
+        "run_id": run_id,
+        "source_pdf_filename": source.get("original_filename"),
+        "source_relative_path": source.get("source_relative_path"),
+        "source_sha256": source.get("sha256"),
+        "processing_timestamp": processed_at,
+        "parser_version": processing.get("parser_version"),
+        "snapshot_version": config.snapshot_version,
+        "validation_version": config.validation_version,
+        "import_package_version": config.import_package_version,
+        "review_status": review.get("status", "not_reviewed")
+        if isinstance(review, Mapping)
+        else "not_reviewed",
+    }
