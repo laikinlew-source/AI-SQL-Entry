@@ -8,10 +8,15 @@ workflow is observed.
 
 ## Current recommendation
 
-Use a read-only, file-based boundary for Version 1:
+Use a read-only, file-based boundary for Version 1. The acquisition decision
+and evidence are maintained in
+[006-official-master-data-acquisition-methods.md](006-official-master-data-acquisition-methods.md):
+Fast XML Export is the current immediate handoff, while REST API and SDK Live
+remain gated by vendor enablement and a read-only contract.
 
 1. Obtain Supplier, Tax Code, GL Account, and Currency exports from SQL Account
-   using an official built-in export or an officially supported read-only API.
+   using an official XML export, built-in export, or an officially supported
+   read-only API/SDK adapter.
 2. Place the files in `incoming/master-data`.
 3. Let `ai-sql-master-data-acquire` discover, validate, normalize, back up, and
    replace all four local JSON snapshots only after every dataset passes.
@@ -31,6 +36,7 @@ as an implementation contract.
 | [003-import-workflow-and-limitations.md](003-import-workflow-and-limitations.md) | Official Get File 3 import boundary and safe workflow diagrams |
 | [004-discovery-blocker-and-next-action.md](004-discovery-blocker-and-next-action.md) | Current blocker, alternatives, smallest user action, and troubleshooting |
 | [005-native-window-visibility-diagnosis.md](005-native-window-visibility-diagnosis.md) | Read-only session, window-placement, and native-bridge diagnosis |
+| [006-official-master-data-acquisition-methods.md](006-official-master-data-acquisition-methods.md) | Official API, XML, batch, SDK, and built-in export investigation and decision |
 
 ## Evidence policy
 
