@@ -20,6 +20,19 @@ DEFAULT_FOLDERS = {
     "diagnostics": "diagnostics",
 }
 
+PRODUCTION_STATES = ("READY", "FAILED", "REVIEW", "DUPLICATE")
+EXCEPTION_CATEGORIES = (
+    "OCR_FAILURE",
+    "MISSING_FIELD",
+    "SUPPLIER_MISMATCH",
+    "TAX_MISMATCH",
+    "GL_MISMATCH",
+    "CURRENCY_MISMATCH",
+    "ARITHMETIC_MISMATCH",
+    "DUPLICATE",
+    "MANUAL_REVIEW_REQUIRED",
+)
+
 
 @dataclass(frozen=True)
 class ProductionConfig:
@@ -37,6 +50,20 @@ class ProductionConfig:
     snapshot_version: str = "1.0.0"
     validation_version: str = "1.0.0"
     import_package_version: str = "1.0.0"
+
+
+@dataclass(frozen=True)
+class InvoiceOutcome:
+    state: str
+    document_id: str | None
+    source_path: Path
+    source_sha256: str
+    run_id: str
+    artifact_dir: Path
+    manifest_path: Path
+    exception_report_path: Path | None
+    processing_seconds: float
+    review_status: str
 
 
 def _resolve_folder(project_root: Path, value: object, default: str) -> Path:
@@ -281,3 +308,54 @@ def build_audit(
         if isinstance(review, Mapping)
         else "not_reviewed",
     }
+
+
+def exception_report(
+    category: str,
+    message: str,
+    *,
+    field_path: str | None,
+    retryable: bool,
+    operator_action: str,
+    report_reference: str | None = None,
+) -> dict[str, object]:
+    if category not in EXCEPTION_CATEGORIES:
+        raise ValueError(f"Unsupported production exception category: {category}")
+    severity = "warning" if category in {"DUPLICATE", "MANUAL_REVIEW_REQUIRED"} else "error"
+    return {
+        "category": category,
+        "severity": severity,
+        "message": message,
+        "field_path": field_path,
+        "retryable": retryable,
+        "operator_action": operator_action,
+        "report_reference": report_reference,
+    }
+
+
+def write_invoice_manifest(
+    path: Path,
+    audit: Mapping[str, object],
+    outcome: InvoiceOutcome,
+    references: Mapping[str, str],
+) -> None:
+    if outcome.state not in PRODUCTION_STATES:
+        raise ValueError(f"Unsupported production state: {outcome.state}")
+    payload = {
+        "manifest_version": "1.0.0",
+        "state": outcome.state,
+        "document_id": outcome.document_id,
+        "run_id": outcome.run_id,
+        "source_path": outcome.source_path.as_posix(),
+        "source_sha256": outcome.source_sha256,
+        "processing_seconds": outcome.processing_seconds,
+        "review_status": outcome.review_status,
+        "audit": dict(audit),
+        "references": dict(references),
+        "exception_report_path": (
+            outcome.exception_report_path.as_posix()
+            if outcome.exception_report_path is not None
+            else None
+        ),
+    }
+    atomic_write_json(path, payload)

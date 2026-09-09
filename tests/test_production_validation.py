@@ -12,10 +12,13 @@ from ai_sql_entry.production_validation import (
     create_run_id,
     discover_invoice_files,
     ensure_production_roots,
+    exception_report,
     find_duplicate,
+    InvoiceOutcome,
     load_resume_index,
     load_production_config,
     record_resume_entry,
+    write_invoice_manifest,
 )
 
 
@@ -201,6 +204,101 @@ class ProductionHistoryTests(unittest.TestCase):
         self.assertEqual(audit["validation_version"], "1.0.0")
         self.assertEqual(audit["import_package_version"], "1.0.0")
         self.assertEqual(audit["review_status"], "not_reviewed")
+
+
+class ProductionOutcomeTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.runtime = Path(__file__).parent / "runtime" / "production-outcomes"
+        shutil.rmtree(self.runtime, ignore_errors=True)
+        self.runtime.mkdir(parents=True)
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.runtime, ignore_errors=True)
+
+    def test_exception_report_is_sanitized_and_pointer_addressable(self) -> None:
+        report = exception_report(
+            "OCR_FAILURE",
+            "OCR did not produce readable text",
+            field_path="/document_details/document_number",
+            retryable=True,
+            operator_action="Inspect OCR runtime and retry.",
+            report_reference="extraction_report.json",
+        )
+
+        self.assertEqual(report["category"], "OCR_FAILURE")
+        self.assertEqual(report["field_path"], "/document_details/document_number")
+        self.assertTrue(report["retryable"])
+        self.assertEqual(report["report_reference"], "extraction_report.json")
+        self.assertNotIn("stderr", report)
+        self.assertNotIn("password", json.dumps(report).casefold())
+
+    def test_supports_every_required_exception_category(self) -> None:
+        categories = {
+            "OCR_FAILURE",
+            "MISSING_FIELD",
+            "SUPPLIER_MISMATCH",
+            "TAX_MISMATCH",
+            "GL_MISMATCH",
+            "CURRENCY_MISMATCH",
+            "ARITHMETIC_MISMATCH",
+            "DUPLICATE",
+            "MANUAL_REVIEW_REQUIRED",
+        }
+
+        reports = {
+            category: exception_report(
+                category,
+                "safe message",
+                field_path=None,
+                retryable=False,
+                operator_action="Review the report.",
+            )
+            for category in categories
+        }
+
+        self.assertEqual(set(reports), categories)
+        self.assertTrue(all(report["severity"] for report in reports.values()))
+
+    def test_writes_manifest_for_each_terminal_state(self) -> None:
+        audit = {
+            "document_id": "doc-state",
+            "run_id": "run-state",
+            "source_pdf_filename": "invoice.pdf",
+            "source_relative_path": "incoming/invoice.pdf",
+            "source_sha256": "a" * 64,
+            "processing_timestamp": "2026-09-09T04:15:30Z",
+            "parser_version": "0.3.0",
+            "snapshot_version": "1.0.0",
+            "validation_version": "1.0.0",
+            "import_package_version": "1.0.0",
+            "review_status": "not_reviewed",
+        }
+        for state in ("READY", "FAILED", "REVIEW", "DUPLICATE"):
+            manifest_path = self.runtime / state / "manifest.json"
+            outcome = InvoiceOutcome(
+                state=state,
+                document_id="doc-state",
+                source_path=self.runtime / "invoice.pdf",
+                source_sha256="a" * 64,
+                run_id="run-state",
+                artifact_dir=manifest_path.parent,
+                manifest_path=manifest_path,
+                exception_report_path=None,
+                processing_seconds=1.25,
+                review_status="not_reviewed",
+            )
+
+            write_invoice_manifest(
+                manifest_path,
+                audit,
+                outcome,
+                {"canonical": "canonical.json"},
+            )
+
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload["state"], state)
+            self.assertEqual(payload["audit"]["source_sha256"], "a" * 64)
+            self.assertEqual(payload["references"]["canonical"], "canonical.json")
 
 
 if __name__ == "__main__":
