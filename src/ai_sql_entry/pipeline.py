@@ -175,7 +175,12 @@ def process_invoice_pdf(
         validate_invoice(canonical, master_data, validated_at=timestamp),
     )
 
-    write_import_package(canonical, artifact_dir / "sql_account_import")
+    write_import_package(
+        canonical,
+        master_data,
+        artifact_dir / "sql_account_import_package",
+        generated_at=timestamp,
+    )
     return PipelineResult(
         document_id,
         artifact_dir,

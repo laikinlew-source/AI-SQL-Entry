@@ -132,6 +132,35 @@ class SqlAccountValidationTests(unittest.TestCase):
             all(check["status"] == "missing" for check in report["checks"].values())
         )
 
+    def test_uses_a_human_supplied_effective_value_for_mapping(self) -> None:
+        canonical = _canonical_invoice()
+        supplier_name = canonical["parties"]["issuer"]["name"]
+        supplier_name["value_status"] = "missing"
+        supplier_name["extracted"]["normalized_value"] = None
+        supplier_name["reviewed"]["status"] = "supplied"
+        supplier_name["reviewed"]["value"] = "Reviewed Supplier Sdn Bhd"
+        master_data = SqlAccountMasterData(
+            suppliers=(
+                SupplierRecord(
+                    code="SUP-REVIEWED", name="Reviewed Supplier Sdn Bhd"
+                ),
+            ),
+            tax_codes=(TaxCodeRecord(code="SST-6", tax_amount="nonzero"),),
+            gl_accounts=(
+                GlAccountRecord(code="5000", name="Purchases", default=True),
+            ),
+            currencies=(CurrencyRecord(code="MYR"),),
+        )
+
+        report = validate_invoice(
+            canonical, master_data, validated_at="2026-09-08T02:00:00Z"
+        )
+
+        self.assertEqual(report["checks"]["supplier"]["status"], "found")
+        self.assertEqual(
+            report["checks"]["supplier"]["mapped_code"], "SUP-REVIEWED"
+        )
+
 
 class JsonSnapshotProviderTests(unittest.TestCase):
     def test_loads_all_four_editable_snapshot_files(self) -> None:

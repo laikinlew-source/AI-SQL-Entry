@@ -50,12 +50,18 @@ class InvoiceBatchTests(unittest.TestCase):
             self.assertEqual(result.failed, ())
             for processed in result.processed:
                 self.assertTrue(processed.canonical_path.is_file())
-                self.assertTrue(
-                    (
-                        processed.artifact_dir
-                        / "sql_account_import"
-                        / "sql_account_purchase_invoice_header.csv"
-                    ).is_file()
+                package_dir = (
+                    processed.artifact_dir / "sql_account_import_package"
+                )
+                self.assertTrue((package_dir / "Mapping_Report.json").is_file())
+                validation = json.loads(
+                    (package_dir / "Validation_Report.json").read_text(
+                        encoding="utf-8"
+                    )
+                )
+                self.assertEqual(validation["ReadyForImport"], "NO")
+                self.assertFalse(
+                    (package_dir / "Purchase Invoice Header.xlsx").exists()
                 )
         finally:
             shutil.rmtree(work_dir, ignore_errors=True)

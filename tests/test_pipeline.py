@@ -73,12 +73,20 @@ class InvoicePipelineTests(unittest.TestCase):
                     / "ocr.txt"
                 ).is_file()
             )
-            self.assertTrue(
-                (
-                    result.artifact_dir
-                    / "sql_account_import"
-                    / "sql_account_purchase_invoice_header.csv"
-                ).is_file()
+            package_dir = result.artifact_dir / "sql_account_import_package"
+            self.assertTrue((package_dir / "Mapping_Report.json").is_file())
+            self.assertTrue((package_dir / "Validation_Report.json").is_file())
+            self.assertTrue((package_dir / "Import_Checklist.md").is_file())
+            self.assertTrue((package_dir / "Import_Summary.md").is_file())
+            self.assertFalse((package_dir / "Purchase Invoice Header.xlsx").exists())
+            self.assertFalse((package_dir / "Purchase Invoice Detail.xlsx").exists())
+            import_validation = json.loads(
+                (package_dir / "Validation_Report.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(import_validation["ReadyForImport"], "NO")
+            self.assertEqual(
+                {item["mapping"] for item in import_validation["missing_mappings"]},
+                {"supplier", "tax_code", "gl_account", "currency"},
             )
             report = json.loads(result.extraction_report_path.read_text(encoding="utf-8"))
             sql_validation = json.loads(

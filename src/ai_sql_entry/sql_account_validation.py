@@ -107,7 +107,7 @@ class JsonSnapshotProvider:
 
 def _business_value(field: dict[str, Any]) -> Any:
     reviewed = field.get("reviewed", {})
-    if reviewed.get("status") == "corrected":
+    if reviewed.get("status") in {"corrected", "supplied"}:
         return reviewed.get("value")
     return field["extracted"]["normalized_value"]
 
