@@ -29,17 +29,20 @@ source-independent snapshot builder.
 ## Local installation result
 
 **VERIFIED-LOCAL:** SQL Account 5.2026.1085.897 is installed at
-`C:\eStream\SQLAccounting\`. The installation contains `SQLACC.exe`,
-`SQLACCSVC.exe`, and application integration components, but it does not contain
-`SQLAccTxtXMLImp.exe`, `SQLAccTxtImp`, an XML Import/Export shortcut, or an XML
-utility installer. The Windows uninstall registry contains only the base
-**SQL Account 5.2026.1085.897** product. The documented default utility folder
-`C:\eStream\Utilities\SQLAccTxtImp` is absent, as are the common Start Menu
-shortcuts for the external module.
+`C:\eStream\SQLAccounting\`, and the separate XML utility is now installed at
+`C:\eStream\Utilities\SQLAccTxtImp\SQLAccTxtXMLImp.exe`. Its file metadata is:
 
-Therefore **SQL Financial Accounting Text & XML Import Module V5 is not
-installed on this machine**. No process was launched and no SQL Account state
-was changed.
+- File version: `5.10.3.62`
+- Product version: `5.10`
+- Product: SQL Financial Accounting Text & XML Import
+- Publisher: E Stream Software Sdn Bhd
+- SHA-256: `D56544C0459E85D0D597A4282FD12F6CA3008F5F280AF723F5E6885696338AE4`
+- MD5: `A0252C252ED866D1E692F580BF7EAE6F`
+
+The utility was launched without arguments for a non-import inspection. Two
+responding processes are present, but the current Codex native-app surface
+reports no native applications and the processes expose no usable main window
+handle. No import, export, posting, or SQL Account state change was performed.
 
 The official [Text Import reference](https://wiki.sql.com.my/wiki/SQL_Text_Import)
 identifies the separate program as `SQLAccTxtXMLImp`, current published build
@@ -48,6 +51,18 @@ identifies the separate program as `SQLAccTxtXMLImp`, current published build
 as [`SQLAccTxtXMLImp-setup.exe`](https://download.sql.com.my/customer/Fairy/SQLAccTxtXMLImp-setup.exe).
 This is a separate utility package, not a component of the base
 `C:\eStream\SQLAccounting` installation.
+
+### Compatibility assessment
+
+Compatibility with SQL Account `5.2026.1085.897` is **not verified**. The
+installed utility is release build 62 from 24 March 2023. Its local vendor
+history records that build 46 added `Tools | Fast XML Export...` and build 57
+moved Fast XML Export under the Export XML menu, so the installed build should
+contain that feature. However, the same history records explicit support for
+SQL Account version 860 and above only at build 66, while this machine runs
+SQL Account build 1085. The installed utility therefore predates the vendor's
+documented 860+ support change. The vendor-published build 5.11.3.82 is the
+safer compatibility target; no automatic upgrade was performed.
 
 ## Executive decision
 
@@ -152,6 +167,15 @@ also describes the external utility and XML export capabilities.
   found. The documented `SQLAccTxtXMLImp.exe -Auto` switch concerns automatic
   import, not a guaranteed scheduled export.
 
+The installed utility's local release history confirms that Fast XML Export is
+present in build 62. It does **not** provide a complete list of the current
+Fast XML Export master-data choices. The official guide explicitly lists
+Supplier and Currency among master data, while the public material and local
+history do not establish that Tax Code and GL Account are selectable export
+types in this exact build. Their availability must be confirmed from the live
+export selection or a real XML artifact; no assumptions are encoded in the
+snapshot builder.
+
 **Decision:** this is the safest immediate bulk acquisition method. It needs a
 one-time operator action because the current Codex runtime cannot expose the
 native Windows dialog. The project can then validate the XML, normalize it to
@@ -175,8 +199,13 @@ toolbar action. Consequently:
 - the utility supports command-line invocation for its scheduled auto-import
   mode;
 - no supported headless Fast XML Export command has been found; and
-- the current machine has no executable from which to verify the module build
-  or whether its export menu is present.
+- although the executable is present, its export menu cannot be inspected from
+  the current runtime.
+
+The executable itself is present and has been launched without arguments, but
+the Codex native-app bridge still reports `apps: []`. The utility processes
+have no accessible main window handle, so the export menu and any required
+company/login confirmation cannot be inspected or selected automatically.
 
 ## Method 3 — Official command-line or batch export
 
