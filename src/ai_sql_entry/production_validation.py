@@ -1,0 +1,133 @@
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+
+DEFAULT_FOLDERS = {
+    "incoming": "incoming",
+    "production": "production",
+    "quarantine": "quarantine",
+    "archive": "archive",
+    "history": "output/production-history",
+    "diagnostics": "diagnostics",
+}
+
+
+@dataclass(frozen=True)
+class ProductionConfig:
+    project_root: Path
+    incoming_dir: Path
+    production_dir: Path
+    quarantine_dir: Path
+    archive_dir: Path
+    history_dir: Path
+    diagnostics_dir: Path
+    poll_interval_seconds: float = 30.0
+    stability_seconds: float = 2.0
+    supported_extensions: tuple[str, ...] = (".pdf",)
+    retry_failed: bool = False
+    snapshot_version: str = "1.0.0"
+    validation_version: str = "1.0.0"
+    import_package_version: str = "1.0.0"
+
+
+def _resolve_folder(project_root: Path, value: object, default: str) -> Path:
+    folder = Path(str(value if value is not None else default))
+    return folder if folder.is_absolute() else project_root / folder
+
+
+def _non_negative_number(value: object, name: str, default: float) -> float:
+    number = float(default if value is None else value)
+    if number < 0:
+        raise ValueError(f"{name} must not be negative")
+    return number
+
+
+def load_production_config(
+    path: Path | None,
+    *,
+    project_root: Path | None = None,
+) -> ProductionConfig:
+    """Load local production settings without contacting external systems."""
+    resolved_path = path.resolve() if path is not None else None
+    root = (project_root or Path.cwd()).resolve()
+    if resolved_path is not None:
+        payload = json.loads(resolved_path.read_text(encoding="utf-8"))
+    else:
+        payload = {}
+    if not isinstance(payload, dict):
+        raise ValueError("Production configuration must be a JSON object")
+
+    folders = payload.get("folders", {})
+    if not isinstance(folders, dict):
+        raise ValueError("Production configuration folders must be an object")
+    folder_values = {
+        name: _resolve_folder(root, folders.get(name), default)
+        for name, default in DEFAULT_FOLDERS.items()
+    }
+    extensions = payload.get("supported_extensions", [".pdf"])
+    if not isinstance(extensions, list) or not extensions:
+        raise ValueError("supported_extensions must be a non-empty list")
+    normalized_extensions = tuple(
+        extension.casefold() if str(extension).startswith(".") else f".{extension.casefold()}"
+        for extension in extensions
+    )
+    return ProductionConfig(
+        project_root=root,
+        incoming_dir=folder_values["incoming"],
+        production_dir=folder_values["production"],
+        quarantine_dir=folder_values["quarantine"],
+        archive_dir=folder_values["archive"],
+        history_dir=folder_values["history"],
+        diagnostics_dir=folder_values["diagnostics"],
+        poll_interval_seconds=_non_negative_number(
+            payload.get("poll_interval_seconds"), "poll_interval_seconds", 30.0
+        ),
+        stability_seconds=_non_negative_number(
+            payload.get("stability_seconds"), "stability_seconds", 2.0
+        ),
+        supported_extensions=normalized_extensions,
+        retry_failed=bool(payload.get("retry_failed", False)),
+        snapshot_version=str(payload.get("snapshot_version", "1.0.0")),
+        validation_version=str(payload.get("validation_version", "1.0.0")),
+        import_package_version=str(
+            payload.get("import_package_version", "1.0.0")
+        ),
+    )
+
+
+def ensure_production_roots(config: ProductionConfig) -> None:
+    for path in (
+        config.incoming_dir,
+        config.production_dir,
+        config.quarantine_dir,
+        config.archive_dir,
+        config.history_dir,
+        config.diagnostics_dir,
+    ):
+        path.mkdir(parents=True, exist_ok=True)
+
+
+def create_run_id(now: datetime, token: str) -> str:
+    utc_now = now.astimezone(timezone.utc)
+    return f"{utc_now:%Y%m%dT%H%M%SZ}-{token}"
+
+
+def discover_invoice_files(config: ProductionConfig) -> tuple[Path, ...]:
+    if not config.incoming_dir.is_dir():
+        return ()
+    return tuple(
+        sorted(
+            (
+                path
+                for path in config.incoming_dir.rglob("*")
+                if path.is_file()
+                and path.suffix.casefold() in config.supported_extensions
+            ),
+            key=lambda path: path.as_posix().casefold(),
+        )
+    )
