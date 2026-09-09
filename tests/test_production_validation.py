@@ -18,10 +18,12 @@ from ai_sql_entry.production_validation import (
     find_duplicate,
     InvoiceOutcome,
     classify_pipeline_artifacts,
+    calculate_production_metrics,
     load_resume_index,
     load_production_config,
     record_resume_entry,
     run_production_once,
+    write_production_reports,
     write_invoice_manifest,
 )
 
@@ -424,6 +426,105 @@ class ProductionCoordinatorTests(unittest.TestCase):
             processor=fake_processor,
         )
         self.assertEqual(second["processed"], 0)
+
+
+class ProductionReportingTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.runtime = Path(__file__).parent / "runtime" / "production-reporting"
+        shutil.rmtree(self.runtime, ignore_errors=True)
+        self.runtime.mkdir(parents=True)
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.runtime, ignore_errors=True)
+
+    def _make_outcome(self, state: str, seconds: float) -> InvoiceOutcome:
+        return InvoiceOutcome(
+            state=state,
+            document_id=f"doc-{state.casefold()}",
+            source_path=self.runtime / f"{state.casefold()}.pdf",
+            source_sha256=(state.casefold() * 64)[:64],
+            run_id="run-report",
+            artifact_dir=self.runtime / state,
+            manifest_path=self.runtime / state / "manifest.json",
+            exception_report_path=None,
+            processing_seconds=seconds,
+            review_status="approved" if state == "READY" else "not_reviewed",
+        )
+
+    def test_metrics_include_state_counts_coverage_average_and_non_measurable_accuracy(self) -> None:
+        outcomes = [
+            self._make_outcome("READY", 1.0),
+            self._make_outcome("REVIEW", 3.0),
+            self._make_outcome("FAILED", 2.0),
+            self._make_outcome("DUPLICATE", 4.0),
+        ]
+        reports = [
+            {
+                "supplier": "found",
+                "tax_code": "found",
+                "gl_account": "found",
+                "currency": "found",
+                "missing_mappings": [],
+            },
+            {
+                "supplier": "missing",
+                "tax_code": "found",
+                "gl_account": "missing",
+                "currency": "found",
+                "missing_mappings": ["supplier", "gl_account"],
+            },
+            {
+                "supplier": "missing",
+                "tax_code": "missing",
+                "gl_account": "missing",
+                "currency": "missing",
+                "missing_mappings": ["supplier", "tax_code", "gl_account", "currency"],
+            },
+            {
+                "supplier": "found",
+                "tax_code": "found",
+                "gl_account": "found",
+                "currency": "found",
+                "missing_mappings": [],
+            },
+        ]
+
+        metrics = calculate_production_metrics(outcomes, reports)
+
+        self.assertEqual(metrics["counts"], {"READY": 1, "FAILED": 1, "REVIEW": 1, "DUPLICATE": 1})
+        self.assertEqual(metrics["coverage"]["supplier"], 50.0)
+        self.assertEqual(metrics["coverage"]["tax_code"], 75.0)
+        self.assertEqual(metrics["coverage"]["gl_account"], 50.0)
+        self.assertEqual(metrics["coverage"]["currency"], 75.0)
+        self.assertEqual(metrics["average_processing_seconds"], 2.5)
+        self.assertEqual(metrics["accuracy"]["status"], "not_measurable")
+
+    def test_writes_timestamped_history_and_current_dashboard_without_overwrite(self) -> None:
+        config = load_production_config(None, project_root=self.runtime)
+        ensure_production_roots(config)
+        base_report = {
+            "report_version": "1.0.0",
+            "run_id": "20260909T041530Z-run1",
+            "counts": {"READY": 1, "FAILED": 0, "REVIEW": 0, "DUPLICATE": 0},
+            "metrics": {
+                "coverage": {"supplier": 100.0, "tax_code": 100.0, "gl_account": 100.0, "currency": 100.0},
+                "average_processing_seconds": 1.0,
+                "accuracy": {"status": "not_measurable", "reason": "No ground truth"},
+            },
+            "outcomes": [],
+        }
+
+        first_paths = write_production_reports(config, base_report)
+        second_report = {**base_report, "run_id": "20260909T041531Z-run2"}
+        second_paths = write_production_reports(config, second_report)
+
+        self.assertTrue(first_paths["json"].is_file())
+        self.assertTrue(second_paths["json"].is_file())
+        self.assertNotEqual(first_paths["json"].parent, second_paths["json"].parent)
+        dashboard = config.history_dir / "production_dashboard.md"
+        self.assertTrue(dashboard.is_file())
+        self.assertIn("READY", dashboard.read_text(encoding="utf-8"))
+        self.assertIn("Run history", dashboard.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

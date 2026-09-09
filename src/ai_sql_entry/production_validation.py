@@ -812,3 +812,125 @@ def run_production_once(
         "unstable": unstable,
         "outcomes": [_outcome_payload(outcome) for outcome in outcomes],
     }
+
+
+def _report_status(report: Mapping[str, object], category: str) -> str | None:
+    direct = report.get(category)
+    if isinstance(direct, str):
+        return direct.casefold()
+    if isinstance(direct, Mapping):
+        status = direct.get("status")
+        if isinstance(status, str):
+            return status.casefold()
+    checks = report.get("checks")
+    if isinstance(checks, Mapping):
+        check = checks.get(category)
+        if isinstance(check, Mapping):
+            status = check.get("status")
+            if isinstance(status, str):
+                return status.casefold()
+            if check.get("passed") is True:
+                return "found"
+            if check.get("passed") is False:
+                return "missing"
+    return None
+
+
+def _coverage(found: int, total: int) -> float | None:
+    return round(found * 100.0 / total, 2) if total else None
+
+
+def calculate_production_metrics(
+    outcomes: tuple[InvoiceOutcome, ...] | list[InvoiceOutcome],
+    reports: tuple[Mapping[str, object], ...] | list[Mapping[str, object]],
+) -> dict[str, object]:
+    counts = {
+        state: sum(1 for outcome in outcomes if outcome.state == state)
+        for state in PRODUCTION_STATES
+    }
+    categories = ("supplier", "tax_code", "gl_account", "currency")
+    coverage: dict[str, float | None] = {}
+    missing_mappings = {category: 0 for category in categories}
+    for category in categories:
+        found = sum(1 for report in reports if _report_status(report, category) == "found")
+        coverage[category] = _coverage(found, len(reports))
+        missing_mappings[category] = sum(
+            1 for report in reports if _report_status(report, category) != "found"
+        )
+    seconds = [float(outcome.processing_seconds) for outcome in outcomes]
+    return {
+        "total_invoices": len(outcomes),
+        "counts": counts,
+        "coverage": coverage,
+        "missing_mappings": missing_mappings,
+        "average_processing_seconds": round(sum(seconds) / len(seconds), 3)
+        if seconds
+        else None,
+        "accuracy": {
+            "status": "not_measurable",
+            "reason": "No reviewed ground-truth set was supplied.",
+        },
+        "ready_for_import_rate": _coverage(counts["READY"], len(outcomes)),
+    }
+
+
+def _dashboard_text(run_report: Mapping[str, object], history_names: list[str]) -> str:
+    counts = run_report.get("counts", {})
+    metrics = run_report.get("metrics", {})
+    coverage = metrics.get("coverage", {}) if isinstance(metrics, Mapping) else {}
+    missing = metrics.get("missing_mappings", {}) if isinstance(metrics, Mapping) else {}
+    average = metrics.get("average_processing_seconds") if isinstance(metrics, Mapping) else None
+    lines = [
+        "# Production Dashboard",
+        "",
+        f"- Run: `{run_report.get('run_id')}`",
+        f"- Total invoices: {run_report.get('total_invoices', sum(counts.values()) if isinstance(counts, Mapping) else 0)}",
+        f"- READY: {counts.get('READY', 0) if isinstance(counts, Mapping) else 0}",
+        f"- REVIEW: {counts.get('REVIEW', 0) if isinstance(counts, Mapping) else 0}",
+        f"- FAILED: {counts.get('FAILED', 0) if isinstance(counts, Mapping) else 0}",
+        f"- DUPLICATE: {counts.get('DUPLICATE', 0) if isinstance(counts, Mapping) else 0}",
+        "",
+        "## Mapping coverage",
+        "",
+        f"- Supplier coverage: {coverage.get('supplier') if isinstance(coverage, Mapping) else None}",
+        f"- Tax coverage: {coverage.get('tax_code') if isinstance(coverage, Mapping) else None}",
+        f"- GL coverage: {coverage.get('gl_account') if isinstance(coverage, Mapping) else None}",
+        f"- Currency coverage: {coverage.get('currency') if isinstance(coverage, Mapping) else None}",
+        "",
+        "## Missing mappings",
+        "",
+        f"- Supplier: {missing.get('supplier', 0) if isinstance(missing, Mapping) else 0}",
+        f"- Tax: {missing.get('tax_code', 0) if isinstance(missing, Mapping) else 0}",
+        f"- GL: {missing.get('gl_account', 0) if isinstance(missing, Mapping) else 0}",
+        f"- Currency: {missing.get('currency', 0) if isinstance(missing, Mapping) else 0}",
+        "",
+        f"- Average processing time (seconds): {average}",
+        "",
+        "## Run history",
+        "",
+    ]
+    lines.extend(f"- `{name}`" for name in history_names)
+    lines.append("")
+    return "\n".join(lines)
+
+
+def write_production_reports(
+    config: ProductionConfig, run_report: Mapping[str, object]
+) -> dict[str, Path]:
+    config.history_dir.mkdir(parents=True, exist_ok=True)
+    run_id = str(run_report["run_id"])
+    history_dir = config.history_dir / run_id
+    history_dir.mkdir(parents=True, exist_ok=False)
+    json_path = history_dir / "production_report.json"
+    dashboard_path = history_dir / "production_dashboard.md"
+    atomic_write_json(json_path, dict(run_report))
+    prior_history = sorted(
+        path.name
+        for path in config.history_dir.iterdir()
+        if path.is_dir() and path.name != run_id
+    )
+    dashboard = _dashboard_text(run_report, prior_history + [run_id])
+    dashboard_path.write_text(dashboard, encoding="utf-8")
+    current_dashboard = config.history_dir / "production_dashboard.md"
+    current_dashboard.write_text(dashboard, encoding="utf-8")
+    return {"json": json_path, "dashboard": dashboard_path, "current_dashboard": current_dashboard}
