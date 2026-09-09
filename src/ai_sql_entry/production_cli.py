@@ -39,8 +39,13 @@ def main(
     arguments = parser.parse_args(argv)
 
     try:
+        config_path = arguments.config
+        if config_path is None:
+            candidate = (arguments.project_root or Path.cwd()) / "config" / "production_validation.json"
+            if candidate.is_file():
+                config_path = candidate
         config = load_production_config(
-            arguments.config,
+            config_path,
             project_root=arguments.project_root,
         )
         if arguments.poll_seconds is not None:

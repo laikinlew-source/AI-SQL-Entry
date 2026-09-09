@@ -43,6 +43,33 @@ class ProductionCliTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             main(["--once", "--watch"], runner=lambda **_: {})
 
+    def test_uses_project_default_config_when_config_is_not_supplied(self) -> None:
+        config_dir = self.runtime / "config"
+        config_dir.mkdir()
+        (config_dir / "production_validation.json").write_text(
+            json.dumps({"folders": {"incoming": "configured-incoming"}}),
+            encoding="utf-8",
+        )
+        incoming_paths: list[Path] = []
+
+        def runner(config, *, now):
+            incoming_paths.append(config.incoming_dir)
+            return {
+                "run_id": "20260909T041530Z-default",
+                "counts": {"READY": 0, "FAILED": 0, "REVIEW": 0, "DUPLICATE": 0},
+                "metrics": {},
+                "outcomes": [],
+            }
+
+        self.assertEqual(
+            main(
+                ["--project-root", str(self.runtime), "--once"],
+                runner=runner,
+            ),
+            0,
+        )
+        self.assertEqual(incoming_paths, [self.runtime / "configured-incoming"])
+
 
 class ProductionDocumentationTests(unittest.TestCase):
     PROJECT_ROOT = Path(__file__).parents[1]
