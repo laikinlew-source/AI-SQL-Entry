@@ -579,6 +579,10 @@ def _publish_outcome(
                 shutil.copytree(child, destination)
             else:
                 shutil.copy2(child, destination)
+    elif source_path.is_file():
+        original_dir = state_dir / "original"
+        original_dir.mkdir()
+        shutil.copy2(source_path, original_dir / source_path.name)
     exception_path: Path | None = None
     if findings:
         exception_path = state_dir / "exception_report.json"

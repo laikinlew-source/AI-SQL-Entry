@@ -419,6 +419,16 @@ class ProductionCoordinatorTests(unittest.TestCase):
         self.assertEqual(report["metrics"]["counts"], report["counts"])
         for state in ("READY", "REVIEW", "FAILED", "DUPLICATE"):
             self.assertEqual(len(list((config.production_dir / report["run_id"] / state).iterdir())), 1)
+        self.assertTrue(
+            (
+                config.production_dir
+                / report["run_id"]
+                / "DUPLICATE"
+                / "doc-b24d6d33736e"
+                / "original"
+                / "04-duplicate.pdf"
+            ).is_file()
+        )
 
         second = run_production_once(
             config,
