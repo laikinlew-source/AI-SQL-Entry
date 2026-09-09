@@ -6,6 +6,8 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
+from ai_sql_entry.extraction import ExtractionError
+from ai_sql_entry.pipeline import PipelineResult
 from ai_sql_entry.production_validation import (
     atomic_write_json,
     build_audit,
@@ -15,9 +17,11 @@ from ai_sql_entry.production_validation import (
     exception_report,
     find_duplicate,
     InvoiceOutcome,
+    classify_pipeline_artifacts,
     load_resume_index,
     load_production_config,
     record_resume_entry,
+    run_production_once,
     write_invoice_manifest,
 )
 
@@ -299,6 +303,127 @@ class ProductionOutcomeTests(unittest.TestCase):
             self.assertEqual(payload["state"], state)
             self.assertEqual(payload["audit"]["source_sha256"], "a" * 64)
             self.assertEqual(payload["references"]["canonical"], "canonical.json")
+
+
+class ProductionCoordinatorTests(unittest.TestCase):
+    FIXED_NOW = datetime(2026, 9, 9, 4, 15, 30, tzinfo=timezone.utc)
+
+    def setUp(self) -> None:
+        self.runtime = Path(__file__).parent / "runtime" / "production-coordinator"
+        shutil.rmtree(self.runtime, ignore_errors=True)
+        self.runtime.mkdir(parents=True)
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.runtime, ignore_errors=True)
+
+    def _config(self):
+        config = load_production_config(None, project_root=self.runtime)
+        config = config.__class__(
+            **{
+                **config.__dict__,
+                "stability_seconds": 0,
+                "poll_interval_seconds": 0,
+            }
+        )
+        ensure_production_roots(config)
+        return config
+
+    def test_classifies_ready_review_and_failed_artifacts(self) -> None:
+        ready, ready_errors = classify_pipeline_artifacts(
+            _canonical_for_history(),
+            {"ReadyForImport": "YES", "missing_mappings": [], "validations": {}},
+        )
+        review, review_errors = classify_pipeline_artifacts(
+            _canonical_for_history(),
+            {
+                "ReadyForImport": "NO",
+                "missing_mappings": [
+                    {"mapping": "supplier", "field_path": "/parties/issuer/name", "reason": "missing"}
+                ],
+                "validations": {"human_review": {"passed": False}},
+            },
+        )
+        failed, failed_errors = classify_pipeline_artifacts(
+            _canonical_for_history(),
+            {
+                "ReadyForImport": "NO",
+                "missing_mappings": [],
+                "validations": {
+                    "totals": {"passed": False},
+                    "sst": {"passed": True},
+                    "line_totals": {"passed": True},
+                },
+            },
+        )
+
+        self.assertEqual(ready, "READY")
+        self.assertEqual(ready_errors, [])
+        self.assertEqual(review, "REVIEW")
+        self.assertEqual(review_errors[0]["category"], "SUPPLIER_MISMATCH")
+        self.assertEqual(failed, "FAILED")
+        self.assertEqual(failed_errors[0]["category"], "ARITHMETIC_MISMATCH")
+
+    def test_run_assigns_all_four_states_and_resumes_terminal_hashes(self) -> None:
+        config = self._config()
+        (config.incoming_dir / "01-ready.pdf").write_bytes(b"ready")
+        (config.incoming_dir / "02-review.pdf").write_bytes(b"review")
+        (config.incoming_dir / "03-failed.pdf").write_bytes(b"failed")
+        (config.incoming_dir / "04-duplicate.pdf").write_bytes(b"ready")
+
+        def fake_processor(pdf_path: Path, output_root: Path, *, created_at: datetime, **_: object):
+            if pdf_path.name == "03-failed.pdf":
+                raise ExtractionError(("invoice_number",), {"invoice_number": "not found"})
+            artifact_dir = output_root / pdf_path.stem
+            package_dir = artifact_dir / "sql_account_import_package"
+            package_dir.mkdir(parents=True)
+            canonical = _canonical_for_history(
+                document_id=f"doc-{pdf_path.stem}",
+                sha256=__import__("hashlib").sha256(pdf_path.read_bytes()).hexdigest(),
+            )
+            canonical["source"]["original_filename"] = pdf_path.name
+            canonical["processing"]["ocr_timestamp"] = created_at.isoformat().replace("+00:00", "Z")
+            (artifact_dir / "canonical.json").write_text(json.dumps(canonical), encoding="utf-8")
+            if pdf_path.name == "02-review.pdf":
+                package = {
+                    "ReadyForImport": "NO",
+                    "missing_mappings": [
+                        {"mapping": "supplier", "field_path": "/parties/issuer/name", "reason": "missing"}
+                    ],
+                    "validations": {"human_review": {"passed": False}},
+                }
+            else:
+                (package_dir / "Purchase Invoice Header.xlsx").write_bytes(b"header")
+                (package_dir / "Purchase Invoice Detail.xlsx").write_bytes(b"detail")
+                package = {"ReadyForImport": "YES", "missing_mappings": [], "validations": {}}
+            (package_dir / "Validation_Report.json").write_text(json.dumps(package), encoding="utf-8")
+            return PipelineResult(
+                document_id=canonical["document_id"],
+                artifact_dir=artifact_dir,
+                canonical_path=artifact_dir / "canonical.json",
+                extraction_report_path=artifact_dir / "extraction_report.json",
+                sql_validation_report_path=artifact_dir / "sql_account_validation_report.json",
+            )
+
+        report = run_production_once(
+            config,
+            now=self.FIXED_NOW,
+            run_token="run1",
+            processor=fake_processor,
+        )
+
+        self.assertEqual(
+            report["counts"], {"READY": 1, "REVIEW": 1, "FAILED": 1, "DUPLICATE": 1}
+        )
+        for state in ("READY", "REVIEW", "FAILED", "DUPLICATE"):
+            self.assertEqual(len(list((config.production_dir / report["run_id"] / state).iterdir())), 1)
+
+        second = run_production_once(
+            config,
+            now=self.FIXED_NOW,
+            run_token="run2",
+            processor=fake_processor,
+        )
+        self.assertEqual(second["processed"], 0)
 
 
 if __name__ == "__main__":
