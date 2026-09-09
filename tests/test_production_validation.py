@@ -416,6 +416,7 @@ class ProductionCoordinatorTests(unittest.TestCase):
         self.assertEqual(
             report["counts"], {"READY": 1, "REVIEW": 1, "FAILED": 1, "DUPLICATE": 1}
         )
+        self.assertEqual(report["metrics"]["counts"], report["counts"])
         for state in ("READY", "REVIEW", "FAILED", "DUPLICATE"):
             self.assertEqual(len(list((config.production_dir / report["run_id"] / state).iterdir())), 1)
 

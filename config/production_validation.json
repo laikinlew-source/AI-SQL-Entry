@@ -1,0 +1,19 @@
+{
+  "folders": {
+    "incoming": "incoming",
+    "production": "production",
+    "quarantine": "quarantine",
+    "archive": "archive",
+    "history": "output/production-history",
+    "diagnostics": "diagnostics"
+  },
+  "poll_interval_seconds": 30,
+  "stability_seconds": 2,
+  "supported_extensions": [
+    ".pdf"
+  ],
+  "retry_failed": false,
+  "snapshot_version": "1.0.0",
+  "validation_version": "1.0.0",
+  "import_package_version": "1.0.0"
+}

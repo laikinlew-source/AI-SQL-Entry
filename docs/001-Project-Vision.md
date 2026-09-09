@@ -126,3 +126,15 @@ Version 1 is successful when a user can place a supported document in `incoming/
 - **Artifact:** A derived file such as a rendered page image, structured JSON record, validation report, or review record.
 - **Approval:** An explicit human decision that the reviewed structured data is ready for a future entry process.
 - **Duplicate:** A file whose content matches a previously known document, primarily determined through a cryptographic content hash.
+- **Extraction status:** The immutable state observed by AI/OCR for a source business value, recorded as `value_status`.
+- **Effective status:** The current usability of a business value after human review; it is derived rather than independently stored.
+- **Logical lifecycle state:** The authoritative document state recorded in canonical JSON. Lifecycle folders are physical projections of that state.
+
+## Production validation extension
+
+The local production coordinator is a safe orchestration layer around the
+Version 1 pipeline. It monitors stable PDFs, records immutable run history, and
+projects each processed invoice into exactly one of `READY`, `FAILED`,
+`REVIEW`, or `DUPLICATE`. It does not expand Version 1 into SQL Account
+integration: it generates evidence and official import files only and never
+writes to SQL Account.

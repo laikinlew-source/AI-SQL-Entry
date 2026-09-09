@@ -59,6 +59,8 @@ The implementation phase should standardize formatting and linting with Ruff, ty
 - Test success, low-confidence output, missing fields, corrupt files, unsupported formats, duplicate files, locked files, partial copies, name collisions, interrupted runs, and recovery.
 - A test must assert externally meaningful behavior, not private implementation detail, unless the detail is a safety invariant.
 
+Architecture-contract tests must additionally verify field-state derivation, financial arithmetic, lifecycle transitions and folder projections, atomic canonical replacement, crash reconciliation, validation-run supersession, correction-history reconciliation, stable line-item references, duplicate dispositions, and lifecycle-dependent requiredness.
+
 ## Git workflow
 
 ### Branches
@@ -111,6 +113,30 @@ All Version 1 implementation must follow these rules:
 18. **Protect sensitive data:** Use sanitized fixtures and avoid sensitive payloads in logs, tests, commits, and screenshots.
 19. **Avoid premature scope:** Do not add alias learning, mailbox access, WhatsApp access, mobile upload, cloud deployment, or parallel-processing complexity in Version 1.
 20. **Document irreversible decisions:** Persistence formats, schema contracts, state-transition semantics, and retention behavior require design review before implementation.
+21. **Honor canonical authority:** `canonical.json` and its `lifecycle_status` are the current-state authority; folders, audit logs, and stage activity cannot override them.
+22. **Derive effective values:** Never persist independently writable `effective_value`; derive effective status and value from immutable extraction state and authoritative field review state.
+23. **Reconcile event history:** The latest applicable correction event must reconcile with the field-level reviewed state; undo and repeated correction append events instead of deleting history.
+24. **Validate current revisions:** Approval requires validation of the current canonical document revision, with no active blocking finding or unresolved error finding.
+25. **Use stable line identities:** Persist `line_item_id` with every line-related finding, correction, and audit reference; array indices alone are not durable identity.
+26. **Protect artifact authority:** Supporting validation, review, extraction, and error files are append-only evidence, not competing current-state stores.
+27. **Enforce retention safely:** Do not process real documents until operator-approved local retention configuration and deletion authority are recorded.
+28. **Identify extractors reproducibly:** Record engine, model, language packs, prompts, preprocessing, runtime, and non-secret configuration fingerprint for every extraction run.
+
+## Architecture validation gates
+
+Before implementing or changing persisted document behavior:
+
+1. Parse every complete JSON example and schema fixture with a real JSON parser.
+2. Resolve every persisted JSON Pointer against its payload; line-related references must also match `line_item_id`.
+3. Recalculate line and document totals using decimal arithmetic and the canonical financial rules.
+4. Validate every lifecycle/folder pair and every attempted transition against the lifecycle matrix.
+5. Reconcile field-level reviewed state with ordered correction history, including undo and repeated correction.
+6. Confirm the current validation run targets the current canonical document revision.
+7. Exercise atomic canonical replacement and crash recovery without relying on folder names as authority.
+8. Search the full documentation and implementation diff for conflicting names, paths, scope, and forbidden Version 1 integrations.
+9. Confirm no document or test fixture contains real sensitive business data.
+
+Human approval is permitted only when document-type policy marks every required-review field as explicitly accepted, corrected, supplied, accepted-unavailable, or not applicable; the current validation run has no active blocking or error finding; no terminal error is active; and any suspected duplicate has an operator disposition. Untouched optional fields are not implicitly accepted unless the document-type policy explicitly declares them non-reviewable. Warnings may remain only when shown to and acknowledged by the reviewer.
 
 ## Dependency rules
 
@@ -152,3 +178,12 @@ A Version 1 change is done only when:
 ## Documentation-only phase
 
 At the end of the initial documentation phase, `src/` and `tests/` contain no application or test code. The only intended repository change is the approved documentation commit. Feature implementation begins only through a later, separately approved task.
+
+## Production validation milestone gates
+
+Production validation changes follow the same test-first sequence and are
+reviewed task by task. Focused tests cover `READY`, `FAILED`, `REVIEW`, and
+`DUPLICATE`, SHA-256 and business-key duplicate reasons, resume after
+interruption, timestamped `production/` and `output/production-history/`
+artifacts, and deterministic dashboards. The coordinator remains local and
+read-only; it never writes to SQL Account or automates its UI.

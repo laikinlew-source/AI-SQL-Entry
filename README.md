@@ -92,6 +92,32 @@ The minimum local extraction, read-only master-data validation, and
 import-preparation pipeline is implemented. Human review, approval, and any
 actual SQL Account import remain separate future work.
 
+## Production validation
+
+The production coordinator monitors real PDFs in configurable `incoming/` and
+creates an immutable timestamped run under `production/`. Unstable or
+unsupported inputs can be preserved in `quarantine/`; source and historical
+artifacts remain in `archive/`; run history and `production_dashboard.md` are
+written under `output/production-history/`; sanitized diagnostics use
+`diagnostics/`.
+
+Every processed invoice ends in exactly one state: `READY`, `FAILED`, `REVIEW`,
+or `DUPLICATE`. SHA-256, invoice number, supplier, invoice date, and total
+amount protect against duplicates. The resume index prevents reprocessing of a
+completed source path. The coordinator produces evidence and official Get File
+3 workbooks only; it never writes to SQL Account.
+
+Run one deterministic scan with:
+
+```powershell
+$env:PYTHONPATH = "src"
+ai-sql-production --once
+```
+
+Use `--config PATH` to select editable folder, polling, stability, and version
+settings. `--watch` repeats the same one-shot scan and can be stopped safely;
+it does not post or import anything in SQL Account.
+
 ## License
 
 This project is licensed under the MIT License. See `LICENSE` for details.

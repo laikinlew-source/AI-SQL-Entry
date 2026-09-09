@@ -802,11 +802,18 @@ def run_production_once(
         )
 
     counts = {state: sum(1 for outcome in outcomes if outcome.state == state) for state in PRODUCTION_STATES}
+    mapping_reports: list[Mapping[str, object]] = []
+    for outcome in outcomes:
+        mapping_path = outcome.artifact_dir / "sql_account_import_package" / "Mapping_Report.json"
+        mapping_reports.append(_json_report(mapping_path) if mapping_path.is_file() else {})
+    metrics = calculate_production_metrics(outcomes, mapping_reports)
     return {
         "report_version": "1.0.0",
         "run_id": run_id,
         "started_at": now.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "total_invoices": len(outcomes),
         "counts": counts,
+        "metrics": metrics,
         "processed": len(outcomes),
         "skipped": skipped,
         "unstable": unstable,
