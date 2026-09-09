@@ -30,6 +30,7 @@ as an implementation contract.
 | [002-read-only-export-methods.md](002-read-only-export-methods.md) | Export-method inventory, comparison, and recommendation |
 | [003-import-workflow-and-limitations.md](003-import-workflow-and-limitations.md) | Official Get File 3 import boundary and safe workflow diagrams |
 | [004-discovery-blocker-and-next-action.md](004-discovery-blocker-and-next-action.md) | Current blocker, alternatives, smallest user action, and troubleshooting |
+| [005-native-window-visibility-diagnosis.md](005-native-window-visibility-diagnosis.md) | Read-only session, window-placement, and native-bridge diagnosis |
 
 ## Evidence policy
 
